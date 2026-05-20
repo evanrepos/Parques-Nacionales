@@ -11,16 +11,17 @@ CREATE TABLE #visitasCSV (
     indice_tiempo DATE,
     origen_visitantes VARCHAR(100),
     visitas INT,
-    observaciones VARCHAR(250)      
+    observaciones VARCHAR(500)      
 );
-
+GO
 CREATE TABLE #visitasRegionCSV (
     indice_tiempo DATE,
     region_de_destino VARCHAR(100),
     origen_visitantes VARCHAR(100),
     visitas INT,
-    observaciones VARCHAR(250)      
+    observaciones VARCHAR(500)      
 );
+GO
 
 --IMPORTACION CSV A TABLAS
 BULK INSERT #visitasCSV 
@@ -31,15 +32,20 @@ WITH (
     CODEPAGE = '65001',          
     FIRSTROW = 2
 );
+GO
 
 BULK INSERT #visitasRegionCSV 
 FROM 'E:\visitas-residentes-y-no-residentes-por-region.csv' 
 WITH (
     FIELDTERMINATOR = ',',
-    ROWTERMINATOR = '\n',       
+    ROWTERMINATOR = '0x0a',       
     CODEPAGE = '65001',          
     FIRSTROW = 2
 );
+GO
+
+SELECT * FROM #visitasRegionCSV
+SELECT * FROM #visitasCSV
 
 --ROLLBACK
 DROP TABLE IF EXISTS #visitasCSV

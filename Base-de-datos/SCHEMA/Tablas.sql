@@ -139,7 +139,6 @@ CREATE TABLE administracion.ajuste (
     tipo_articulo_id INT NOT NULL,
     tipo_visitante_id INT NOT NULL,
     tipo_fecha_id INT NOT NULL,
-    signo BIT, --Recargo(0), Descuento(1)
     porcentaje TINYINT,
     CONSTRAINT FK_ajuste_articulo FOREIGN KEY (tipo_articulo_id) REFERENCES tipo_articulo(id),
     CONSTRAINT FK_ajuste_visitante FOREIGN KEY (tipo_visitante_id) REFERENCES tipo_visitante(id),
@@ -155,11 +154,13 @@ CREATE TABLE administracion.punto_venta (
 
 CREATE TABLE rrhh.guardaparques (
     id INT PRIMARY KEY IDENTITY(1,1),
-    nombre VARCHAR(30),
-    apellido VARCHAR(50),
-    fecha_nacimiento DATE
+    nombre VARCHAR(30) NOT NULL,
+    apellido VARCHAR(50) NOT NULL,
+    fecha_nacimiento DATE NOT NULL
 );
 
+
+-- CORREGIR: NOT NULL A FECHAS
 CREATE TABLE rrhh.asignacion_guardaparques (
     id INT PRIMARY KEY IDENTITY(1,1),
     parque_id INT NOT NULL,
@@ -220,9 +221,8 @@ CREATE TABLE comercial.concesion (
 CREATE TABLE comercial.cuota_canon (
     id INT PRIMARY KEY IDENTITY(1,1),
     concesion_id INT NOT NULL,
-    forma_pago_id INT NOT NULL,
-    fecha_generacion DATE,
-    fecha_vencimiento AS DATEADD(DAY, 30, fecha_generacion) PERSISTED,
+    forma_pago_id INT,
+    fecha_vencimiento DATE NOT NULL,
     fecha_pago DATE,
     CONSTRAINT FK_cuota_concesion FOREIGN KEY (concesion_id) REFERENCES comercial.concesion(id),
     CONSTRAINT FK_cuota_pago FOREIGN KEY (forma_pago_id) REFERENCES forma_pago(id)
@@ -255,12 +255,16 @@ CREATE TABLE ventas.detalle_ticket (
     CONSTRAINT FK_detalle_ajuste FOREIGN KEY (ajuste_id) REFERENCES administracion.ajuste(id)
 );
 
+
+-- CORREGIR: MAL, no puede relacionarse a un ticket, porque varias personas distintas pueden participar de UNA MISMA ACTIVIDAD
+
+-- TODO: Ver si podemos resolver guia como CHECK.
 CREATE TABLE ventas.actividad (
     id INT PRIMARY KEY IDENTITY(1, 1),
     tarifa_id INT NOT NULL,
     ticket_id INT NOT NULL,
-    guia_id INT NOT NULL,
-    tipo_actividad BIT, --Tour (0) Actividad Turística (1)
+    guia_id INT,
+    tipo_actividad CHAR(1) CHECK (tipo_actividad in ('T', 'A')),
     fecha_visita DATE DEFAULT GETDATE() NOT NULL,
     precio DECIMAL(10, 2),
     CONSTRAINT FK_actividad_tarifa FOREIGN KEY (tarifa_id) REFERENCES administracion.tarifa_articulo(id),

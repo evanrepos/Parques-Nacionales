@@ -40,7 +40,7 @@ GO
 --CREACION BASE DE DATOS
 IF NOT EXISTS (SELECT name FROM sys.databases WHERE name = 'ParquesNacionales')
 BEGIN
-	CREATE DATABASE ParquesNacionales2lasecuela
+	CREATE DATABASE ParquesNacionales
 	COLLATE Modern_Spanish_CS_AS
 END
 GO
@@ -198,9 +198,9 @@ CREATE TABLE comercial.actividad_concesion (
 
 CREATE TABLE comercial.empresa (
 	id INT PRIMARY KEY IDENTITY(1,1),
-	cuit CHAR(11) UNIQUE NOT NULL,
+	cuit INT UNIQUE NOT NULL CHECK (cuit between 200000000 and 339999999999),
 	razon_social VARCHAR(100) NOT NULL,
-	direccion_legal VARCHAR(50) NOT NULL,
+	direccion_legal VARCHAR(100) NOT NULL,
 	comienzo_actividad DATE NOT NULL
 );
 

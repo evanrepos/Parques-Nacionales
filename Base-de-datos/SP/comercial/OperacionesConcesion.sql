@@ -1,4 +1,6 @@
 
+-- TODO: Permitir "CANCELAR" Concesiones iniciadas. Sin eliminarlas.
+
 CREATE OR ALTER PROCEDURE dbo.CrearActividadConcesion
     @nombre VARCHAR(30),
     @descripcion VARCHAR(100)

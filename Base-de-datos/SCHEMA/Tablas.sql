@@ -154,6 +154,7 @@ CREATE TABLE administracion.punto_venta (
 
 CREATE TABLE rrhh.guardaparques (
     id INT PRIMARY KEY IDENTITY(1,1),
+    cuil BIGINT UNIQUE NOT NULL CHECK (cuit between 20000000001 and 339999999999),
     nombre VARCHAR(30) NOT NULL,
     apellido VARCHAR(50) NOT NULL,
     fecha_nacimiento DATE NOT NULL
@@ -165,7 +166,7 @@ CREATE TABLE rrhh.asignacion_guardaparques (
     id INT PRIMARY KEY IDENTITY(1,1),
     parque_id INT NOT NULL,
     guardaparques_id INT NOT NULL,
-    fecha_ingreso DATE,
+    fecha_ingreso DATE NOT NULL,
     fecha_egreso DATE,
     motivo_egreso VARCHAR(200),
     CONSTRAINT FK_asignacion_parque FOREIGN KEY (parque_id) REFERENCES administracion.parque(id),

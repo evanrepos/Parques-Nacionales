@@ -1,3 +1,4 @@
+-- TODO: Ajustar schemas
 
 -- TODO: Permitir "CANCELAR" Concesiones iniciadas. Sin eliminarlas.
 

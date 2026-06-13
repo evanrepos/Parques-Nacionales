@@ -24,6 +24,8 @@ DROP TABLE IF EXISTS Ventas.Actividades;
 DROP TABLE IF EXISTS Ventas.Entradas;
 GO
 
+--todo eliminar participa en actividad
+
 -- Eliminar Schemas
 DROP SCHEMA IF EXISTS [Ventas]
 DROP SCHEMA IF EXISTS [RRHH]

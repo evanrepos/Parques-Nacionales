@@ -120,17 +120,6 @@ BEGIN
     );
 END;
 
--- TODO: Ese check da error, debería ser a nivel de tabla.
-/*CREATE TABLE Administracion.TarifasDeArticulo (
-    id INT PRIMARY KEY IDENTITY(1, 1),
-    parque_id INT NOT NULL,
-    tipo_articulo CHAR(1) NOT NULL CHECK (tipo_articulo IN ('E', 'T', 'A')), --El tipo de artículo ahora es un char.
-    descripcion VARCHAR(50),
-    duracion INT NULL CHECK (tipo_articulo = 'T' AND (duracion <> NULL OR duracion > 0)),
-    cupo INT NULL CHECK (tipo_articulo = 'T' AND (cupo <> NULL OR cupo > 0)),
-    precio DECIMAL(10, 2) CHECK (precio >= 0),
-    CONSTRAINT FK_Tarifas_Parques FOREIGN KEY (parque_id) REFERENCES Administracion.Parques(id)
-);*/
 IF OBJECT_ID('Administracion.TarifasDeArticulo', 'U') IS NULL
 BEGIN
     CREATE TABLE Administracion.TarifasDeArticulo (
@@ -141,6 +130,8 @@ BEGIN
         duracion INT NULL,
         cupo INT NULL,
         precio DECIMAL(10, 2) CHECK (precio >= 0),
+        CONSTRAINT CK_Duracion CHECK (tipo_articulo = 'T' AND (duracion <> NULL OR duracion > 0)),
+        CONSTRAINT CK_Cupo CHECK (tipo_articulo = 'T' AND (cupo <> NULL OR cupo > 0)),
         CONSTRAINT FK_Tarifas_Parques FOREIGN KEY (parque_id) REFERENCES Administracion.Parques(id)
     );
 END;

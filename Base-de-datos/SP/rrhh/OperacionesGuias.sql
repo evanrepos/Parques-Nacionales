@@ -195,3 +195,50 @@ BEGIN
     SET @id = SCOPE_IDENTITY();
 END
 GO
+
+
+CREATE OR ALTER PROCEDURE RRHH.FinalizarAutorizacionGuia
+    @id_guia INT,
+    @id_tarifa INT,
+    @fecha_fin DATE
+AS
+BEGIN
+    SET NOCOUNT ON
+
+    -- 1. El guía debe estar autorizado al tour que se desea remover.
+       -- (por consistencia de los Store Procedures, si está autorizado a dar el tour, está asignado al parque y la actividad es un tour)
+    DECLARE @tipoArticulo CHAR(1) = (SELECT tipo_articulo 
+                                     FROM Administracion.TarifasDeArticulo 
+                                     WHERE id = @id_tarifa);
+    DECLARE @guiaExiste BIT = IIF(NOT EXISTS (SELECT 1 FROM RRHH.Guias WHERE id = @id_guia), 0, 1);
+    DECLARE @tarifaExiste BIT = IIF(NOT EXISTS (SELECT 1 FROM Administracion.TarifasDeArticulo WHERE id = @id_tarifa), 0, 1);
+
+    DECLARE @mensajeDeError VARCHAR(500) = CONCAT_WS(CHAR(10),
+        IIF(@guiaExiste = 0, 'El guía no existe', NULL),
+        IIF(@tarifaExiste = 0, 'La tarifa no existe', NULL)
+    );
+
+    IF (@guiaExiste = 1 AND @tarifaExiste = 1)
+    begin
+        -- Si el tour y el guia son reales, validamos la autorizacion, y las fechas
+        DECLARE @fechaInicio DATE = (SELECT f_inicio 
+        FROM RRHH.AutorizacionesDeGuias
+        WHERE guia_id = @id_guia AND articulo_id = @id_tarifa AND f_fin IS NULL);
+
+        SET @mensajeDeError += CONCAT_WS(CHAR(10),
+                                   IIF(@fechaInicio IS NULL, 'El guía no está autorizado a dar ese tour', ''),
+                                   IIF(@fecha_fin < @fechaInicio, 'La fecha de fin no puede ser anterior a la fecha de autorizacion', '')
+                               );
+    END;
+
+    IF (LEN(@mensajeDeError) > 0) BEGIN
+        ;THROW 50000, @mensajeDeError, 1;
+    END;
+
+    -- INSERT
+    UPDATE RRHH.AutorizacionesDeGuias
+    SET f_fin = @fecha_fin
+    WHERE guia_id = @id_guia AND articulo_id = @id_tarifa AND f_fin IS NULL;
+
+END
+GO

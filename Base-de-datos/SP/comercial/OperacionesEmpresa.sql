@@ -14,6 +14,7 @@
    store procedures relacionados con las
    operaciones de las empresas...
 */
+USE ParquesNacionales;
 
 CREATE OR ALTER PROCEDURE Comercial.RegistrarEmpresa
     @cuit BIGINT,

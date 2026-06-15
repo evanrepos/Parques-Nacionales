@@ -1,3 +1,5 @@
+USE ParquesNacionales;
+
 -- TODO: Permitir "CANCELAR" Concesiones iniciadas. Sin eliminarlas.
 
 CREATE OR ALTER PROCEDURE Comercial.CrearActividadDeConcesion

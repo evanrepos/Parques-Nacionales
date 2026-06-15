@@ -205,7 +205,7 @@ BEGIN
         guia_id INT NOT NULL,
         f_ingreso DATE NOT NULL,
         f_egreso DATE,
-        f_motivo_egreso VARCHAR(200),
+        motivo_egreso VARCHAR(200),
         CONSTRAINT FK_AsignacionesGuias_Parques FOREIGN KEY (parque_id) REFERENCES Administracion.Parques(id),
         CONSTRAINT FK_Asignaciones_Guia FOREIGN KEY (guia_id) REFERENCES RRHH.Guias(id)
     );

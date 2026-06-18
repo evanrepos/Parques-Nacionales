@@ -20,6 +20,9 @@
 
 -- Para probar las concesiones necesitamos una actividad, una empresa, y un parque
 
+use ParquesNacionales;
+GO
+
 BEGIN TRANSACTION
 
 --#### Registros Necesarios para los tests ####--

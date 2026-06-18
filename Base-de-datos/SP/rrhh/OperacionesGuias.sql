@@ -62,6 +62,7 @@ BEGIN
 END;
 GO*/
 
+-- Asigna a un guía, permitiendo que trabaje en un parque.
 CREATE OR ALTER PROCEDURE RRHH.AsignarGuia
     @id_guia INT,
     @id_parque INT,
@@ -93,6 +94,7 @@ END
 GO
 
 
+-- Remueve la asignación de un guía a un parque.
 CREATE OR ALTER PROCEDURE RRHH.FinalizarAsignacionGuia
     @id_guia INT, -- Es ID de la asignación
     @fecha_egreso DATE,
@@ -140,6 +142,7 @@ BEGIN
 END
 GO
 
+-- Autoriza a un guía a participar en una actividad.
 CREATE OR ALTER PROCEDURE RRHH.AutorizarGuia
     @id_guia INT,
     @id_tarifa INT,
@@ -196,7 +199,7 @@ BEGIN
 END
 GO
 
-
+-- Revoca el permiso de un guía a participar en una actividad de un parque.
 CREATE OR ALTER PROCEDURE RRHH.FinalizarAutorizacionGuia
     @id_guia INT,
     @id_tarifa INT,

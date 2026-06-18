@@ -62,6 +62,7 @@ BEGIN
 END;
 GO*/
 
+-- Asigna a un guía, permitiendo que trabaje en un parque.
 CREATE OR ALTER PROCEDURE RRHH.AsignarGuia
     @id_guia INT,
     @id_parque INT,
@@ -93,6 +94,7 @@ END
 GO
 
 
+-- Remueve la asignación de un guía a un parque.
 CREATE OR ALTER PROCEDURE RRHH.FinalizarAsignacionGuia
     @id_guia INT, -- Es ID de la asignación
     @fecha_egreso DATE,
@@ -140,6 +142,7 @@ BEGIN
 END
 GO
 
+-- Autoriza a un guía a participar en una actividad.
 CREATE OR ALTER PROCEDURE RRHH.AutorizarGuia
     @id_guia INT,
     @id_tarifa INT,
@@ -196,7 +199,7 @@ BEGIN
 END
 GO
 
-
+-- Revoca el permiso de un guía a participar en una actividad de un parque.
 CREATE OR ALTER PROCEDURE RRHH.FinalizarAutorizacionGuia
     @id_guia INT,
     @id_tarifa INT,
@@ -241,4 +244,56 @@ BEGIN
     WHERE guia_id = @id_guia AND articulo_id = @id_tarifa AND f_fin IS NULL;
 
 END
+GO
+
+-- Editar un Guía
+CREATE OR ALTER PROCEDURE RRHH.EditarGuia
+    @id INT,
+    @nombre VARCHAR(30),
+    @apellido VARCHAR(50),
+    @fecha_nacimiento DATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    DECLARE @mensajeDeError VARCHAR(500) = CONCAT_WS(CHAR(10),
+        IIF(NOT EXISTS (SELECT 1 FROM RRHH.Guias WHERE id = @id), 'El guía no existe', NULL),
+        IIF(@nombre IS NULL, '@nombre no puede ser nulo', NULL),
+        IIF(@apellido IS NULL, '@apellido no puede ser nulo', NULL),
+        IIF(@fecha_nacimiento IS NULL, '@fecha_nacimiento no puede ser nulo', NULL),
+        IIF(@fecha_nacimiento > DATEADD(year, -18, GETDATE()), 'El guía debe ser mayor de edad', NULL)
+    );
+
+    IF (LEN(@mensajeDeError) > 0) BEGIN
+        ;THROW 50000, @mensajeDeError, 1;
+    END;
+
+    UPDATE RRHH.Guias
+    SET nombre = @nombre,
+        apellido = @apellido,
+        f_nacimiento = @fecha_nacimiento
+    WHERE id = @id;
+END;
+GO
+
+-- Eliminar un Guía
+CREATE OR ALTER PROCEDURE RRHH.EliminarGuia
+    @id INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    -- Validamos que el guía exista y que NUNCA haya tenido una asignación
+    DECLARE @mensajeDeError VARCHAR(500) = CONCAT_WS(CHAR(10),
+        IIF(NOT EXISTS (SELECT 1 FROM RRHH.Guias WHERE id = @id), 'El guía no existe', NULL),
+        IIF(EXISTS (SELECT 1 FROM RRHH.AsignacionesDeGuias WHERE guia_id = @id), 'No se puede eliminar el guía porque tiene o tuvo asignaciones a parques/actividades', NULL)
+    );
+
+    IF (LEN(@mensajeDeError) > 0) BEGIN
+        ;THROW 50000, @mensajeDeError, 1;
+    END;
+
+    DELETE FROM RRHH.Guias
+    WHERE id = @id;
+END;
 GO

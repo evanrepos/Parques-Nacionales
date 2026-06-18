@@ -15,6 +15,7 @@
    operaciones de las empresas...
 */
 USE ParquesNacionales;
+GO
 
 CREATE OR ALTER PROCEDURE Comercial.RegistrarEmpresa
     @cuit BIGINT,

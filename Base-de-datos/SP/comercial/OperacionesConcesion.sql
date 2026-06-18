@@ -1,4 +1,5 @@
 USE ParquesNacionales;
+GO
 
 -- TODO: Permitir "CANCELAR" Concesiones iniciadas. Sin eliminarlas.
 

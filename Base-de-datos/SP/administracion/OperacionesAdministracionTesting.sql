@@ -1,7 +1,8 @@
 USE ParquesNacionales
 
---INGRESAR DATOS
+BEGIN TRANSACTION
 
+--INGRESAR DATOS
 -- =============================================
 -- FormasDePago
 -- =============================================
@@ -136,100 +137,66 @@ EXEC Administracion.IngresarProvincias @nombre = 'Tucumán'
 GO
 
 -- =============================================
--- Localidades
--- =============================================
--- RECHAZO: nombre nulo (provincia valida)
-EXEC Administracion.IngresarLocalidad @provincias_id = 1
-GO
--- RECHAZO: provincia inexistente (nombre valido)
-EXEC Administracion.IngresarLocalidad @provincias_id = 9999, @nombre = 'San Carlos de Bariloche'
-GO
--- EXITO: provincia y nombre validos
--- (Asumir que Buenos Aires = 1, Córdoba = 2, Neuquén = 3, Río Negro = 4,
---  Chubut = 5, Santa Cruz = 6, Tierra del Fuego = 7, Mendoza = 8, Salta = 9,
---  Jujuy = 10, Misiones = 11, según orden de inserción de Provincias)
-EXEC Administracion.IngresarLocalidad @provincias_id = 16, @nombre = 'San Carlos de Bariloche'
-GO
-EXEC Administracion.IngresarLocalidad @provincias_id = 16, @nombre = 'El Bolsón'
-GO
-EXEC Administracion.IngresarLocalidad @provincias_id = 15, @nombre = 'San Martín de los Andes'
-GO
-EXEC Administracion.IngresarLocalidad @provincias_id = 15, @nombre = 'Villa La Angostura'
-GO
-EXEC Administracion.IngresarLocalidad @provincias_id = 5, @nombre = 'Esquel'
-GO
-EXEC Administracion.IngresarLocalidad @provincias_id = 20, @nombre = 'Calafate'
-GO
-EXEC Administracion.IngresarLocalidad @provincias_id = 23, @nombre = 'Ushuaia'
-GO
-EXEC Administracion.IngresarLocalidad @provincias_id = 17, @nombre = 'Cachi'
-GO
-EXEC Administracion.IngresarLocalidad @provincias_id = 10, @nombre = 'Tilcara'
-GO
-EXEC Administracion.IngresarLocalidad @provincias_id = 14, @nombre = 'Puerto Iguazú'
-GO
-
--- =============================================
 -- Parques
 -- IDs de referencia asumidos según inserción:
 --   TiposDeParque:  Nacional=1, Provincial=2, Reserva=3, Monumento Natural=4
---   Localidades:    Bariloche=1, El Bolsón=2, San Martín de los Andes=3,
+--   provincia:    Bariloche=1, El Bolsón=2, San Martín de los Andes=3,
 --                   Villa La Angostura=4, Esquel=5, Calafate=6,
 --                   Ushuaia=7, Cachi=8, Tilcara=9, Puerto Iguazú=10
 -- =============================================
 
 -- RECHAZO: tipo de parque inexistente
 EXEC Administracion.IngresarParques 
-    @tipos_parque_id = 9999, @localidades_id = 1, 
+    @tipo_parque_id = 9999, @provincia_id = 1, 
     @nombre = 'Nahuel Huapi', @superficie = 794900
 GO
 -- RECHAZO: localidad inexistente
 EXEC Administracion.IngresarParques 
-    @tipos_parque_id = 1, @localidades_id = 9999, 
+    @tipo_parque_id = 1, @provincia_id = 9999, 
     @nombre = 'Nahuel Huapi', @superficie = 794900
 GO
 -- RECHAZO: nombre nulo
 EXEC Administracion.IngresarParques 
-    @tipos_parque_id = 1, @localidades_id = 1, 
+    @tipo_parque_id = 1, @provincia_id = 1, 
     @superficie = 794900
 GO
 -- RECHAZO: superficie negativa
 EXEC Administracion.IngresarParques 
-    @tipos_parque_id = 1, @localidades_id = 1, 
+    @tipo_parque_id = 1, @provincia_id = 1, 
     @nombre = 'Nahuel Huapi', @superficie = -1
 GO
 -- RECHAZO: superficie cero
 EXEC Administracion.IngresarParques 
-    @tipos_parque_id = 1, @localidades_id = 1, 
+    @tipo_parque_id = 1, @provincia_id = 1, 
     @nombre = 'Nahuel Huapi', @superficie = 0
 GO
 -- EXITO: parques nacionales reales (dirección opcional, queda NULL)
 EXEC Administracion.IngresarParques 
-    @tipos_parque_id = 1, @localidades_id = 1,
+    @tipo_parque_id = 1, @provincia_id = 1,
     @nombre = 'Nahuel Huapi', @superficie = 794900
 GO
 EXEC Administracion.IngresarParques 
-    @tipos_parque_id = 1, @localidades_id = 3,
+    @tipo_parque_id = 1, @provincia_id = 3,
     @nombre = 'Lanín', @superficie = 412000
 GO
 EXEC Administracion.IngresarParques 
-    @tipos_parque_id = 1, @localidades_id = 6,
+    @tipo_parque_id = 1, @provincia_id = 6,
     @nombre = 'Los Glaciares', @superficie = 726927
 GO
 EXEC Administracion.IngresarParques 
-    @tipos_parque_id = 1, @localidades_id = 7,
+    @tipo_parque_id = 1, @provincia_id = 7,
     @nombre = 'Tierra del Fuego', @superficie = 63000
 GO
 EXEC Administracion.IngresarParques 
-    @tipos_parque_id = 1, @localidades_id = 10,
+    @tipo_parque_id = 1, @provincia_id = 10,
     @nombre = 'Iguazú', @superficie = 67620
 GO
 EXEC Administracion.IngresarParques 
-    @tipos_parque_id = 3, @localidades_id = 8,
+    @tipo_parque_id = 3, @provincia_id = 8,
     @nombre = 'Los Cardones', @superficie = 65000
 GO
 EXEC Administracion.IngresarParques 
-    @tipos_parque_id = 3, @localidades_id = 9,
+    @tipo_parque_id = 3, @provincia_id = 9,
     @nombre = 'Quebrada de Humahuaca', @superficie = 172000
 GO
 
@@ -428,8 +395,6 @@ EXEC Administracion.ActualizarTiposDeParque
 GO
 EXEC Administracion.ActualizarProvincias
 GO
-EXEC Administracion.ActualizarLocalidades
-GO
 EXEC Administracion.ActualizarParques
 GO
 EXEC Administracion.ActualizarTarifasDeArticulo
@@ -454,8 +419,6 @@ EXEC Administracion.EliminarTiposDeParque
 GO
 EXEC Administracion.EliminarProvincias
 GO
-EXEC Administracion.EliminarLocalidades
-GO
 EXEC Administracion.EliminarParques
 GO
 EXEC Administracion.EliminarTarifasDeArticulo
@@ -464,3 +427,8 @@ EXEC Administracion.EliminarAjustes
 GO
 EXEC Administracion.EliminarPuntosDeVenta
 GO
+
+IF @@TRANCOUNT > 0
+BEGIN
+    ROLLBACK TRANSACTION;
+END;

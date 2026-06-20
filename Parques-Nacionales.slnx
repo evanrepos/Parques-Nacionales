@@ -10,6 +10,7 @@
   </Folder>
   <Folder Name="/Base de Datos/SP/" />
   <Folder Name="/Base de Datos/SP/administracion/">
+    <File Path="Base-de-datos/SP/administracion/ImportacionAdministracion.sql" />
     <File Path="Base-de-datos/SP/administracion/OperacionesAdministracion.sql" />
     <File Path="Base-de-datos/SP/administracion/OperacionesAdministracionTesting.sql" />
   </Folder>
@@ -25,5 +26,6 @@
   </Folder>
   <Folder Name="/Base de Datos/SP/ventas/">
     <File Path="Base-de-datos/SP/ventas/OperacionesVentas.sql" />
+    <File Path="Base-de-datos/SP/ventas/OperacionesVentasTesting.sql" />
   </Folder>
 </Solution>

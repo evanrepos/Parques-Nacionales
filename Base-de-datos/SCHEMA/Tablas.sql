@@ -3,7 +3,7 @@
 IF NOT EXISTS (SELECT name FROM sys.databases WHERE name = 'ParquesNacionales')
 BEGIN
 	CREATE DATABASE ParquesNacionales
-	COLLATE Modern_Spanish_CS_AS
+	COLLATE Modern_Spanish_CI_AI
 END
 GO
 
@@ -49,7 +49,7 @@ IF OBJECT_ID('Administracion.FormasDePago', 'U') IS NULL
 BEGIN
     CREATE TABLE Administracion.FormasDePago (
         id INT PRIMARY KEY IDENTITY(1,1),
-        descripcion VARCHAR(30)
+        descripcion VARCHAR(100)
     );
 END
 
@@ -57,7 +57,7 @@ IF OBJECT_ID('Administracion.Divisas', 'U') IS NULL
 BEGIN
     CREATE TABLE Administracion.Divisas (
         id INT PRIMARY KEY IDENTITY(1,1),
-        descripcion VARCHAR(30)
+        descripcion VARCHAR(100)
     );
 END;
 
@@ -65,7 +65,7 @@ IF OBJECT_ID('Administracion.TiposDeFecha', 'U') IS NULL
 BEGIN
     CREATE TABLE Administracion.TiposDeFecha (
         id INT PRIMARY KEY IDENTITY(1,1),
-        descripcion VARCHAR(30)
+        descripcion VARCHAR(100)
     );
 END;
 
@@ -73,7 +73,7 @@ IF OBJECT_ID('Administracion.TiposDeVisitante', 'U') IS NULL
 BEGIN
     CREATE TABLE Administracion.TiposDeVisitante (
         id INT PRIMARY KEY IDENTITY(1,1),
-        descripcion VARCHAR(30)
+        descripcion VARCHAR(100)
     );
 END;
 
@@ -83,7 +83,7 @@ IF OBJECT_ID('Administracion.TiposDeParque', 'U') IS NULL
 BEGIN
 CREATE TABLE Administracion.TiposDeParque (
 	id INT PRIMARY KEY IDENTITY(1,1),
-	descripcion VARCHAR(30) NOT NULL
+	descripcion VARCHAR(100) NOT NULL
 );
 END
 
@@ -91,17 +91,7 @@ IF OBJECT_ID('Administracion.Provincias', 'U') IS NULL
 BEGIN
     CREATE TABLE Administracion.Provincias (
     	id INT PRIMARY KEY IDENTITY(1,1),
-    	descripcion VARCHAR(100) NOT NULL
-    );
-END;
-
-IF OBJECT_ID('Administracion.Localidades', 'U') IS NULL
-BEGIN
-    CREATE TABLE Administracion.Localidades (
-    	id INT PRIMARY KEY IDENTITY(1,1),
-    	provincia_id INT NOT NULL,
     	descripcion VARCHAR(100) NOT NULL,
-    	CONSTRAINT FK_Localidades_Provincias FOREIGN KEY (provincia_id) REFERENCES Administracion.Provincias(id)
     );
 END;
 
@@ -111,11 +101,11 @@ BEGIN
     CREATE TABLE Administracion.Parques (
     	id INT PRIMARY KEY IDENTITY(1,1),
     	tipo_parque_id INT NOT NULL,
-    	localidad_id INT NOT NULL,
+    	provincia_id INT NOT NULL,
     	direccion VARCHAR(150) NOT NULL,
     	nombre VARCHAR(100) NOT NULL,
     	superficie_km_2 INT NOT NULL CHECK (superficie_km_2 > 0),
-    	CONSTRAINT FK_Parques_Localidades FOREIGN KEY (localidad_id) REFERENCES Administracion.Localidades(id),
+    	CONSTRAINT FK_Parques_Provincias FOREIGN KEY (provincia_id) REFERENCES Administracion.Provincias(id),
     	CONSTRAINT FK_Parques_Tipos FOREIGN KEY (tipo_parque_id) REFERENCES Administracion.TiposDeParque(id)
     );
 END;
@@ -126,12 +116,12 @@ BEGIN
         id INT PRIMARY KEY IDENTITY(1, 1),
         parque_id INT NOT NULL,
         tipo_articulo CHAR(1) NOT NULL CHECK (tipo_articulo IN ('E', 'T', 'A')), --El tipo de artículo ahora es un char.
-        descripcion VARCHAR(50),
+        descripcion VARCHAR(100),
         duracion INT NULL,
         cupo INT NULL,
         precio DECIMAL(10, 2) CHECK (precio >= 0),
-        CONSTRAINT CK_Duracion CHECK (tipo_articulo = 'T' AND (duracion <> NULL OR duracion > 0)),
-        CONSTRAINT CK_Cupo CHECK (tipo_articulo = 'T' AND (cupo <> NULL OR cupo > 0)),
+        CONSTRAINT CK_Duracion CHECK (tipo_articulo <> 'T' OR (duracion IS NOT NULL OR duracion > 0)),
+        CONSTRAINT CK_Cupo CHECK (tipo_articulo <> 'T' OR (cupo IS NOT NULL OR cupo > 0)),
         CONSTRAINT FK_Tarifas_Parques FOREIGN KEY (parque_id) REFERENCES Administracion.Parques(id)
     );
 END;
@@ -142,21 +132,20 @@ BEGIN
         id INT PRIMARY KEY IDENTITY(1, 1),
         parque_id INT NOT NULL, --Ajuste se vincula con parque, para saber los ajustes que se aplican en cada parque.
         tipo_articulo CHAR(1) NOT NULL CHECK (tipo_articulo IN ('E', 'T', 'A')),
-        tipo_visitante_id INT NOT NULL,
-        tipo_fecha_id INT NOT NULL,
-        porcentaje TINYINT,
-        CONSTRAINT FK_Ajustes_Parques FOREIGN KEY (parque_id) REFERENCES Administracion.Parques(id),
-        CONSTRAINT FK_Ajustes_Visitantes FOREIGN KEY (tipo_visitante_id) REFERENCES Administracion.TiposDeVisitante(id),
-        CONSTRAINT FK_Ajustes_Fechas FOREIGN KEY (tipo_fecha_id) REFERENCES Administracion.TiposDeFecha(id)
+        tipo_ajuste CHAR(1) NOT NULL CHECK (tipo_ajuste IN ('F', 'V', 'TE')), -- F: Fecha, V: Visitante, TE: Tipo Entrada
+        descripcion VARCHAR(30) NOT NULL,
+        porcentaje SMALLINT NOT NULL,
+        CONSTRAINT FK_Ajustes_Parques FOREIGN KEY (parque_id) REFERENCES Administracion.Parques(id)
     );
 END;
 
 IF OBJECT_ID('Administracion.PuntosDeVenta', 'U') IS NULL
 BEGIN
     CREATE TABLE Administracion.PuntosDeVenta (
-        id INT PRIMARY KEY IDENTITY(1,1),
-        parque_id INT NOT NULL,
-        descripcion VARCHAR(30),
+        id SMALLINT UNIQUE NOT NULL,
+        parque_id INT UNIQUE NOT NULL,
+        descripcion VARCHAR(100),
+        CONSTRAINT PK_Puntos_De_Venta PRIMARY KEY (id, parque_id),
         CONSTRAINT FK_Puntos_De_Venta_Parques FOREIGN KEY (parque_id) REFERENCES Administracion.Parques(id)
     );
 END;
@@ -166,8 +155,8 @@ BEGIN
     CREATE TABLE RRHH.Guardaparques (
         id INT PRIMARY KEY IDENTITY(1,1),
         cuil BIGINT UNIQUE NOT NULL CHECK (cuil between 20000000001 and 339999999999),
-        nombre VARCHAR(30) NOT NULL,
-        apellido VARCHAR(50) NOT NULL,
+        nombre VARCHAR(100) NOT NULL,
+        apellido VARCHAR(100) NOT NULL,
         f_nacimiento DATE NOT NULL
     );
 END;
@@ -192,7 +181,7 @@ BEGIN
     	id INT PRIMARY KEY IDENTITY(1,1),
     	cuil BIGINT UNIQUE NOT NULL CHECK (cuil between 20000000001 and 339999999999),
     	nombre VARCHAR(100) NOT NULL,
-    	apellido VARCHAR(200) NOT NULL,
+    	apellido VARCHAR(100) NOT NULL,
         f_nacimiento DATE NOT NULL
     );
 END;
@@ -228,7 +217,7 @@ IF OBJECT_ID('Comercial.ActividadesDeConcesiones', 'U') IS NULL
 BEGIN
     CREATE TABLE Comercial.ActividadesDeConcesiones (
         id INT PRIMARY KEY IDENTITY(1,1),
-        nombre VARCHAR(30),
+        nombre VARCHAR(100),
         descripcion VARCHAR(100)
     );
 END;
@@ -279,13 +268,14 @@ IF OBJECT_ID('Ventas.TicketsDeVenta', 'U') IS NULL
 BEGIN
     CREATE TABLE Ventas.TicketsDeVenta (
         id INT PRIMARY KEY IDENTITY(1,1),
-        punto_venta_id INT NOT NULL,
+        punto_venta_id SMALLINT NOT NULL,
+        parque_id INT NOT NULL,
         forma_pago_id INT NOT NULL,
         divisa_id INT NOT NULL,
         cotizacion DECIMAL(15, 5),
         f_generacion DATE DEFAULT GETDATE() NOT NULL,
         total DECIMAL(12, 2),
-        CONSTRAINT FK_Ticket_Puntos_De_Venta FOREIGN KEY (punto_venta_id) REFERENCES Administracion.PuntosDeVenta(id),
+        CONSTRAINT FK_Ticket_Puntos_De_Venta FOREIGN KEY (punto_venta_id, parque_id) REFERENCES Administracion.PuntosDeVenta(id, parque_id),
         CONSTRAINT FK_Ticket_Pagos FOREIGN KEY (forma_pago_id) REFERENCES Administracion.FormasDePago(id),
         CONSTRAINT FK_Ticket_Divisas FOREIGN KEY (divisa_id) REFERENCES Administracion.Divisas(id)
     );

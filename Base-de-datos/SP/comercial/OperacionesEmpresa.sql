@@ -46,49 +46,71 @@ BEGIN
     VALUES
     (@cuit, @razon_social, @direccion_legal, @comienzo_actividad);
 
-    set @id = SCOPE_IDENTITY();
+    SET @id = SCOPE_IDENTITY();
 END
 GO
 
+-- Para identificar la empresa a modificar, se acepta @id o @cuit (ambos son únicos).
+-- Los nuevos valores son opcionales: solo se actualiza lo que se envíe (patrón ISNULL).
 CREATE OR ALTER PROCEDURE Comercial.ModificarEmpresa
-    @id INT,
-    @razon_social VARCHAR(100),
-    @direccion_legal VARCHAR(100),
-    @comienzo_actividad DATE
+    @id INT = NULL,
+    @cuit BIGINT = NULL,
+    @razon_social_nueva VARCHAR(100) = NULL,
+    @direccion_legal_nueva VARCHAR(100) = NULL,
+    @comienzo_actividad_nuevo DATE = NULL
 AS
 BEGIN
     SET NOCOUNT ON
-    
+
     DECLARE @mensajeDeError VARCHAR(500) = CONCAT_WS(CHAR(10),
-        IIF(@razon_social IS NULL, '@razon social no puede ser nulo', NULL),
-        IIF(@direccion_legal IS NULL, '@direccion_legal no puede ser nulo', NULL),
-        IIF(@comienzo_actividad IS NULL, '@comienzo_actividad no puede ser nulo', NULL),
-        IIF(EXISTS (SELECT 1 FROM Comercial.Empresas WHERE id = @id), 'La empresa no existe', NULL)
+        IIF(@id IS NULL AND @cuit IS NULL, 'Debe indicar @id o @cuit para identificar la empresa', NULL),
+        IIF(@razon_social_nueva IS NULL AND @direccion_legal_nueva IS NULL AND @comienzo_actividad_nuevo IS NULL, 'Debe indicar al menos un campo a modificar', NULL),
+        IIF(@comienzo_actividad_nuevo > GETDATE(), '@comienzo_actividad_nuevo no puede ser posterior a la fecha actual', NULL)
     );
 
     IF (LEN(@mensajeDeError) > 0) BEGIN
         ;THROW 50000, @mensajeDeError, 1;
     END;
 
-    UPDATE Comercial.Empresas
-    SET razon_social       = @razon_social,
-        direccion_legal     = @direccion_legal,
-        comienzo_actividad = @comienzo_actividad
-    WHERE id = @id;
+    -- Resolución de la PK real a partir de @id o @cuit
+    DECLARE @id_real INT;
+    SELECT @id_real = id
+    FROM Comercial.Empresas
+    WHERE id = @id OR cuit = @cuit;
 
-    set @id = SCOPE_IDENTITY();
+    IF (@id_real IS NULL) BEGIN
+        ;THROW 50000, 'La empresa no existe', 1;
+    END;
+
+    UPDATE Comercial.Empresas
+    SET razon_social       = ISNULL(@razon_social_nueva, razon_social),
+        direccion_legal     = ISNULL(@direccion_legal_nueva, direccion_legal),
+        comienzo_actividad = ISNULL(@comienzo_actividad_nuevo, comienzo_actividad)
+    WHERE id = @id_real;
+
 END
 GO
 
+-- Para identificar la empresa a eliminar, se acepta @id o @cuit (ambos son únicos).
 CREATE OR ALTER PROCEDURE Comercial.EliminarEmpresa
-    @id INT
+    @id INT = NULL,
+    @cuit BIGINT = NULL
 AS
 BEGIN
     SET NOCOUNT ON
-    
+
+    IF (@id IS NULL AND @cuit IS NULL) BEGIN
+        ;THROW 50000, 'Debe indicar @id o @cuit para identificar la empresa', 1;
+    END;
+
+    DECLARE @id_real INT;
+    SELECT @id_real = id
+    FROM Comercial.Empresas
+    WHERE id = @id OR cuit = @cuit;
+
     DECLARE @mensajeDeError VARCHAR(500) = CONCAT_WS(CHAR(10),
-        IIF(NOT EXISTS (SELECT 1 FROM Comercial.Empresas WHERE id = @id), 'La empresa no existe', NULL),
-        IIF(EXISTS (SELECT 1 FROM Comercial.Concesiones WHERE empresa_id = @id), 'La empresa tiene  concesiones asociadas.', NULL)
+        IIF(@id_real IS NULL, 'La empresa no existe', NULL),
+        IIF(EXISTS (SELECT 1 FROM Comercial.Concesiones WHERE empresa_id = @id_real), 'La empresa tiene concesiones asociadas.', NULL)
     );
 
     IF (LEN(@mensajeDeError) > 0) BEGIN
@@ -96,12 +118,6 @@ BEGIN
     END;
 
     DELETE FROM Comercial.Empresas
-    WHERE id = @id;
-
-    set @id = SCOPE_IDENTITY();
+    WHERE id = @id_real;
 END
 GO
-
-
-
-

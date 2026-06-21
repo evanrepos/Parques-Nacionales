@@ -18,17 +18,18 @@ BEGIN
         IIF(@nombre IS NULL, '@nombre no puede ser nulo', NULL),
         IIF(@apellido IS NULL, '@apellido no puede ser nulo', NULL),
         IIF(@fecha_nacimiento IS NULL, '@@fecha_nacimiento no puede ser nulo', NULL),
-        IIF(@fecha_nacimiento < DATEADD(year, -18, GETDATE()), 'El guía debe ser mayor de edad', NULL)
+        IIF(@fecha_nacimiento > DATEADD(year, -18, GETDATE()), 'El guía debe ser mayor de edad', NULL)
     );
 
     IF (LEN(@mensajeDeError) > 0) BEGIN
         ;THROW 50000, @mensajeDeError, 1;
     END;
 
+    -- Un guía nace sin asignación, por lo tanto inactivo.
     INSERT INTO RRHH.Guias
-    (cuil, nombre, apellido, f_nacimiento)
+    (cuil, nombre, apellido, esta_activo, f_nacimiento)
     VALUES
-    (@cuil, @nombre, @apellido, @fecha_nacimiento);
+    (@cuil, @nombre, @apellido, 0, @fecha_nacimiento);
 
     SET @id = SCOPE_IDENTITY();
 END;
@@ -74,9 +75,9 @@ BEGIN
     -- Reglas de negocio: No se puede asignar si el guía tiene una asignación activa.
     DECLARE @mensajeDeError VARCHAR(500) = CONCAT_WS(CHAR(10),
         IIF(NOT EXISTS (SELECT 1 FROM RRHH.Guias WHERE id = @id_guia), 'El guía no existe', NULL),
-        IIF(NOT EXISTS (SELECT 1 FROM RRHH.Parques WHERE id = @id_parque), 'El parque no existe', NULL),
-        IIF(NOT EXISTS (SELECT 1 FROM RRHH.AsignacionesDeGuias 
-                        WHERE guia_id = id_guia AND f_egreso IS NULL), 'El guía ya tiene una asignación activa', NULL),
+        IIF(NOT EXISTS (SELECT 1 FROM Administracion.Parques WHERE id = @id_parque), 'El parque no existe', NULL),
+        IIF(EXISTS (SELECT 1 FROM RRHH.AsignacionesDeGuias 
+                        WHERE guia_id = @id_guia AND f_egreso IS NULL), 'El guía ya tiene una asignación activa', NULL),
         IIF(@fecha_ingreso IS NULL, '@fecha_ingreso no puede ser nulo', NULL)
     );
     
@@ -84,12 +85,32 @@ BEGIN
         ;THROW 50000, @mensajeDeError, 1;
     END;
 
-    INSERT INTO RRHH.AsignacionesDeGuias
-    (parque_id, guia_id, f_ingreso)
-    VALUES
-    (@id_parque, @id_guia, @fecha_ingreso);
+    BEGIN TRY
+        BEGIN TRANSACTION
+        SAVE TRANSACTION ComienzoSP
 
-    SET @id = SCOPE_IDENTITY();
+        INSERT INTO RRHH.AsignacionesDeGuias
+        (parque_id, guia_id, f_ingreso)
+        VALUES
+        (@id_parque, @id_guia, @fecha_ingreso);
+
+        SET @id = SCOPE_IDENTITY();
+
+        -- Al tener una asignación vigente, el guía pasa a estar activo
+        -- (independientemente de si ya tiene autorizaciones para dar tours o no).
+        UPDATE RRHH.Guias
+        SET esta_activo = 1
+        WHERE id = @id_guia;
+
+        COMMIT TRANSACTION
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+        BEGIN
+            ROLLBACK TRANSACTION ComienzoSP;
+        END;
+        ;THROW;
+    END CATCH
 END
 GO
 
@@ -127,6 +148,11 @@ BEGIN
         UPDATE RRHH.AutorizacionesDeGuias 
         SET f_fin = @fecha_egreso
         WHERE guia_id = @id_guia AND f_fin IS NULL;
+
+        -- Al finalizar la asignación, el guía pasa a estar inactivo.
+        UPDATE RRHH.Guias
+        SET esta_activo = 0
+        WHERE id = @id_guia;
 
     COMMIT TRANSACTION
     END TRY

@@ -19,17 +19,18 @@ BEGIN
         IIF(@nombre IS NULL, '@nombre no puede ser nulo', NULL),
         IIF(@apellido IS NULL, '@apellido no puede ser nulo', NULL),
         IIF(@fecha_nacimiento IS NULL, '@fecha_nacimiento no puede ser nulo', NULL),
-        IIF(@fecha_nacimiento < DATEADD(year, -18, GETDATE()), 'El guardaparque debe ser mayor de edad', NULL)
+        IIF(@fecha_nacimiento > DATEADD(year, -18, GETDATE()), 'El guardaparque debe ser mayor de edad', NULL)
     );
 
     IF (LEN(@mensajeDeError) > 0) BEGIN
         ;THROW 50000, @mensajeDeError, 1;
     END;
 
+    -- Un guardaparque nace sin asignación, por lo tanto inactivo.
     INSERT INTO RRHH.Guardaparques
-    (cuil, nombre, apellido, f_nacimiento)
+    (cuil, nombre, apellido, esta_activo, f_nacimiento)
     VALUES
-    (@cuil, @nombre, @apellido, @fecha_nacimiento);
+    (@cuil, @nombre, @apellido, 0, @fecha_nacimiento);
 
     SET @id = SCOPE_IDENTITY();
 END;
@@ -57,12 +58,31 @@ BEGIN
         ;THROW 50000, @mensajeDeError, 1;
     END;
 
-    INSERT INTO RRHH.AsignacionesDeGuardaparques
-    (parque_id, guardaparques_id, f_ingreso)
-    VALUES
-    (@id_parque, @id_guardaparque, @fecha_ingreso);
+    BEGIN TRY
+        BEGIN TRANSACTION
+        SAVE TRANSACTION ComienzoSP
 
-    SET @id = SCOPE_IDENTITY();
+        INSERT INTO RRHH.AsignacionesDeGuardaparques
+        (parque_id, guardaparques_id, f_ingreso)
+        VALUES
+        (@id_parque, @id_guardaparque, @fecha_ingreso);
+
+        SET @id = SCOPE_IDENTITY();
+
+        -- Al tener una asignación vigente, el guardaparque pasa a estar activo.
+        UPDATE RRHH.Guardaparques
+        SET esta_activo = 1
+        WHERE id = @id_guardaparque;
+
+        COMMIT TRANSACTION
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+        BEGIN
+            ROLLBACK TRANSACTION ComienzoSP;
+        END;
+        ;THROW;
+    END CATCH
 END
 GO
 
@@ -95,6 +115,11 @@ BEGIN
         UPDATE RRHH.AsignacionesDeGuardaparques
         SET f_egreso = @fecha_egreso, f_motivo_egreso = @motivo
         WHERE guardaparques_id = @id_guardaparque AND f_egreso IS NULL;
+
+        -- Al finalizar la asignación, el guardaparque pasa a estar inactivo.
+        UPDATE RRHH.Guardaparques
+        SET esta_activo = 0
+        WHERE id = @id_guardaparque;
 
         COMMIT TRANSACTION
     END TRY

@@ -1,3 +1,6 @@
+USE ParquesNacionales
+GO
+SET NOCOUNT ON
 -- =============================================
 -- FormasDePago (GENERABLE)
 -- =============================================
@@ -88,15 +91,18 @@ INSERT INTO #Parques
         'Excel 12.0;HDR=YES;IMEX=1;Database=E:\ParquesNacionales\AreasProtegidas\AreasProtegidas.xlsx',
         'SELECT * FROM [Areas_Protegidas$]'
     );
+GO
 
 -- PASO 2: Guardar Tipos Parque en tabla temporal #TiposParque
 CREATE TABLE #TiposParque (
 	id INT PRIMARY KEY IDENTITY(1,1),
 	descripcion VARCHAR(100) 
 );
+GO
 
 INSERT INTO #TiposParque
     SELECT DISTINCT categoria_conservacion FROM #Parques
+GO
 
 -- PASO 3: Usando ID de #TiposParque y un iterador, en un WHILE, UPSERT TiposParque usando el SP correspondiente 
 DECLARE @i TINYINT = 1;
@@ -125,9 +131,11 @@ CREATE TABLE #Provincias (
 	id INT PRIMARY KEY IDENTITY(1,1),
 	descripcion VARCHAR(100) 
 );
+GO
 
 INSERT INTO #Provincias
     SELECT DISTINCT ubicacion FROM #Parques
+GO
 
 DECLARE @i TINYINT = 1;
 DECLARE @cant_provincias TINYINT = (SELECT COUNT(1) FROM #Provincias)
@@ -192,17 +200,18 @@ DECLARE @cant_parques TINYINT = (SELECT COUNT(1) FROM Administracion.Parques);
 WHILE @Parque <= @cant_parques
 BEGIN
     DECLARE @punto_venta TINYINT = 1;
-    DECLARE @cant_puntos_venta TINYINT = 20;
+    DECLARE @cant_puntos_venta TINYINT = (SELECT 5 + ABS(CHECKSUM(NEWID())) % 15);
     WHILE @punto_venta <= @cant_puntos_venta
     BEGIN
-        EXEC Administracion.IngresarPuntosDeVenta @parque_id = @Parque, @descripcion = NULL
+        DECLARE @desc VARCHAR(MAX) = (SELECT 'Parque: ' + CAST(@Parque AS VARCHAR(MAX)) + '- Puesto: ' + CAST(@punto_venta AS VARCHAR(MAX)));
+        EXEC Administracion.IngresarPuntosDeVenta @parque_id = @Parque, @descripcion = @desc
         SET @punto_venta = @punto_venta + 1
     END
     SET @Parque = @Parque + 1;
 END
 GO
 
-SELECT * FROM Administracion.PuntosDeVenta
+--SELECT * FROM Administracion.PuntosDeVenta
 
 -- =============================================
 -- TarifasDeArticulo

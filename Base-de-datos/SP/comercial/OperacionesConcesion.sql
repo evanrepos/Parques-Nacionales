@@ -85,7 +85,7 @@ BEGIN
     
     DECLARE @mensajeDeError VARCHAR(500) = CONCAT_WS(CHAR(10),
         IIF(NOT EXISTS (SELECT 1 FROM Comercial.Concesiones WHERE id = @concesion_id), 'La concesion no existe', NULL),
-        IIF(@fecha_inicio >= @fecha_fin, 'Las fecha de inicio debe ser menor a la fecha de fin', NULL)
+        IIF(@fecha_inicio >= @fecha_fin, 'Las fecha de inicio debe ser anterior a la fecha de fin', NULL)
     );
 
     IF (LEN(@mensajeDeError) > 0)

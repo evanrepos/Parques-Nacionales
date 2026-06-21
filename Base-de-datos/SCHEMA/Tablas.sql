@@ -1,4 +1,3 @@
-
 --CREACION BASE DE DATOS
 IF NOT EXISTS (SELECT name FROM sys.databases WHERE name = 'ParquesNacionales')
 BEGIN
@@ -52,6 +51,7 @@ BEGIN
         descripcion VARCHAR(100)
     );
 END
+GO
 
 IF OBJECT_ID('Administracion.Divisas', 'U') IS NULL
 BEGIN
@@ -59,7 +59,8 @@ BEGIN
         id INT PRIMARY KEY IDENTITY(1,1),
         descripcion VARCHAR(100)
     );
-END;
+END
+GO
 
 IF OBJECT_ID('Administracion.TiposDeFecha', 'U') IS NULL
 BEGIN
@@ -67,7 +68,8 @@ BEGIN
         id INT PRIMARY KEY IDENTITY(1,1),
         descripcion VARCHAR(100)
     );
-END;
+END
+GO
 
 IF OBJECT_ID('Administracion.TiposDeVisitante', 'U') IS NULL
 BEGIN
@@ -75,7 +77,8 @@ BEGIN
         id INT PRIMARY KEY IDENTITY(1,1),
         descripcion VARCHAR(100)
     );
-END;
+END
+GO
 
 ---- ME QUEDE ACA
 
@@ -86,6 +89,7 @@ CREATE TABLE Administracion.TiposDeParque (
 	descripcion VARCHAR(100) NOT NULL
 );
 END
+GO
 
 IF OBJECT_ID('Administracion.Provincias', 'U') IS NULL
 BEGIN
@@ -93,7 +97,8 @@ BEGIN
     	id INT PRIMARY KEY IDENTITY(1,1),
     	descripcion VARCHAR(100) NOT NULL,
     );
-END;
+END
+GO
 
 --Tablas comunes
 IF OBJECT_ID('Administracion.Parques', 'U') IS NULL
@@ -108,7 +113,8 @@ BEGIN
     	CONSTRAINT FK_Parques_Provincias FOREIGN KEY (provincia_id) REFERENCES Administracion.Provincias(id),
     	CONSTRAINT FK_Parques_Tipos FOREIGN KEY (tipo_parque_id) REFERENCES Administracion.TiposDeParque(id)
     );
-END;
+END
+GO
 
 IF OBJECT_ID('Administracion.TarifasDeArticulo', 'U') IS NULL
 BEGIN
@@ -124,7 +130,8 @@ BEGIN
         CONSTRAINT CK_Cupo CHECK (tipo_articulo <> 'T' OR (cupo IS NOT NULL OR cupo > 0)),
         CONSTRAINT FK_Tarifas_Parques FOREIGN KEY (parque_id) REFERENCES Administracion.Parques(id)
     );
-END;
+END
+GO
 
 IF OBJECT_ID('Administracion.Ajustes', 'U') IS NULL
 BEGIN
@@ -137,18 +144,20 @@ BEGIN
         porcentaje SMALLINT NOT NULL,
         CONSTRAINT FK_Ajustes_Parques FOREIGN KEY (parque_id) REFERENCES Administracion.Parques(id)
     );
-END;
+END
+GO
 
 IF OBJECT_ID('Administracion.PuntosDeVenta', 'U') IS NULL
 BEGIN
     CREATE TABLE Administracion.PuntosDeVenta (
-        id SMALLINT UNIQUE NOT NULL,
-        parque_id INT UNIQUE NOT NULL,
+        id SMALLINT NOT NULL,
+        parque_id INT NOT NULL,
         descripcion VARCHAR(100),
         CONSTRAINT PK_Puntos_De_Venta PRIMARY KEY (id, parque_id),
         CONSTRAINT FK_Puntos_De_Venta_Parques FOREIGN KEY (parque_id) REFERENCES Administracion.Parques(id)
     );
-END;
+END
+GO
 
 IF OBJECT_ID('RRHH.Guardaparques', 'U') IS NULL
 BEGIN
@@ -157,9 +166,11 @@ BEGIN
         cuil BIGINT UNIQUE NOT NULL CHECK (cuil between 20000000001 and 339999999999),
         nombre VARCHAR(100) NOT NULL,
         apellido VARCHAR(100) NOT NULL,
+        esta_activo BIT NOT NULL DEFAULT 0, --CORREGIR EN SPs DE INSERCION.
         f_nacimiento DATE NOT NULL
     );
-END;
+END
+GO
 
 IF OBJECT_ID('RRHH.AsignacionesDeGuardaparques', 'U') IS NULL
 BEGIN
@@ -173,7 +184,8 @@ BEGIN
         CONSTRAINT FK_AsignacionesGuardaparques_Parques FOREIGN KEY (parque_id) REFERENCES Administracion.Parques(id),
         CONSTRAINT FK_Asignaciones_Guardaparques FOREIGN KEY (guardaparques_id) REFERENCES RRHH.Guardaparques(id)
     );
-END;
+END
+GO
 
 IF OBJECT_ID('RRHH.Guias', 'U') IS NULL
 BEGIN
@@ -182,9 +194,11 @@ BEGIN
     	cuil BIGINT UNIQUE NOT NULL CHECK (cuil between 20000000001 and 339999999999),
     	nombre VARCHAR(100) NOT NULL,
     	apellido VARCHAR(100) NOT NULL,
+        esta_activo BIT NOT NULL DEFAULT 0, --CORREGIR EN SPs DE INSERCION.
         f_nacimiento DATE NOT NULL
     );
-END;
+END
+GO
 
 IF OBJECT_ID('RRHH.AsignacionesDeGuias', 'U') IS NULL
 BEGIN
@@ -198,7 +212,8 @@ BEGIN
         CONSTRAINT FK_AsignacionesGuias_Parques FOREIGN KEY (parque_id) REFERENCES Administracion.Parques(id),
         CONSTRAINT FK_Asignaciones_Guia FOREIGN KEY (guia_id) REFERENCES RRHH.Guias(id)
     );
-END;
+END
+GO
 
 IF OBJECT_ID('RRHH.AutorizacionesDeGuias', 'U') IS NULL
 BEGIN
@@ -211,7 +226,8 @@ BEGIN
         CONSTRAINT FK_Autorizaciones_Articulos FOREIGN KEY (articulo_id) REFERENCES Administracion.TarifasDeArticulo(id),
         CONSTRAINT FK_Autorizaciones_Guias FOREIGN KEY (guia_id) REFERENCES RRHH.Guias(id)
     );
-END;
+END
+GO
 
 IF OBJECT_ID('Comercial.ActividadesDeConcesiones', 'U') IS NULL
 BEGIN
@@ -220,7 +236,8 @@ BEGIN
         nombre VARCHAR(100),
         descripcion VARCHAR(100)
     );
-END;
+END
+GO
 
 IF OBJECT_ID('Comercial.Empresas', 'U') IS NULL
 BEGIN
@@ -231,7 +248,8 @@ BEGIN
     	direccion_legal VARCHAR(100) NOT NULL,
     	comienzo_actividad DATE NOT NULL
     );
-END;
+END
+GO
 
 -- TODO: Regla de negocio, al menos dos semanas de concesion ?
 IF OBJECT_ID('Comercial.Concesiones', 'U') IS NULL
@@ -249,7 +267,8 @@ BEGIN
         CONSTRAINT FK_Concesiones_empresas FOREIGN KEY (empresa_id) REFERENCES Comercial.Empresas(id),
         CONSTRAINT FK_Concesiones_actividades FOREIGN KEY (tipo_actividad_id) REFERENCES Comercial.ActividadesDeConcesiones(id)
     );
-END;
+END
+GO
 
 IF OBJECT_ID('Comercial.CuotasCanon', 'U') IS NULL
 BEGIN
@@ -262,7 +281,8 @@ BEGIN
         CONSTRAINT FK_Cuotas_Concesiones FOREIGN KEY (concesion_id) REFERENCES Comercial.Concesiones(id),
         CONSTRAINT FK_Cuotas_Pagos FOREIGN KEY (forma_pago_id) REFERENCES Administracion.FormasDePago(id)
     );
-END;
+END
+GO
 
 IF OBJECT_ID('Ventas.TicketsDeVenta', 'U') IS NULL
 BEGIN
@@ -279,7 +299,8 @@ BEGIN
         CONSTRAINT FK_Ticket_Pagos FOREIGN KEY (forma_pago_id) REFERENCES Administracion.FormasDePago(id),
         CONSTRAINT FK_Ticket_Divisas FOREIGN KEY (divisa_id) REFERENCES Administracion.Divisas(id)
     );
-END;
+END
+GO
 
 IF OBJECT_ID('Ventas.DetallesDeTicket', 'U') IS NULL
 BEGIN
@@ -296,7 +317,8 @@ BEGIN
         CONSTRAINT FK_Detalles_Articulos FOREIGN KEY (tarifa_id) REFERENCES Administracion.TarifasDeArticulo(id),
         CONSTRAINT FK_Detalles_Ajustes FOREIGN KEY (ajuste_id) REFERENCES Administracion.Ajustes(id)
     );
-END;
+END
+GO
 
 IF OBJECT_ID('Ventas.Actividades', 'U') IS NULL
 BEGIN
@@ -316,7 +338,8 @@ BEGIN
         CONSTRAINT FK_Actividades_Tickets FOREIGN KEY (ticket_id) REFERENCES Ventas.TicketsDeVenta(id),
         CONSTRAINT FK_Actividades_Guias FOREIGN KEY (guia_id) REFERENCES RRHH.Guias(id)
     );
-END;
+END
+GO
 
 IF OBJECT_ID('Ventas.ParticipaEnActividad', 'U') IS NULL
 BEGIN
@@ -326,7 +349,8 @@ BEGIN
         CONSTRAINT FK_En_Actividad FOREIGN KEY (actividad_id) REFERENCES Ventas.Actividades(id),
         CONSTRAINT FK_Tickets_En FOREIGN KEY (ticket_id) REFERENCES Ventas.TicketsDeVenta(id)
     );
-END;
+END
+GO
 
 IF OBJECT_ID('Ventas.Entradas', 'U') IS NULL
 BEGIN
@@ -343,4 +367,5 @@ BEGIN
         CONSTRAINT FK_Entradas_Fechas FOREIGN KEY (tipo_fecha_id) REFERENCES Administracion.TiposDeFecha(id),
         CONSTRAINT FK_Entradas_Visitantes FOREIGN KEY (tipo_visitante_id) REFERENCES Administracion.TiposDeVisitante(id)
     );
-END;
+END
+GO

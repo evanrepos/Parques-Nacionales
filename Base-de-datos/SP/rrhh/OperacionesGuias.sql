@@ -205,7 +205,7 @@ BEGIN
                                            WHERE guia_id = @id_guia
                                            AND parque_id = @parqueId
                                            AND f_egreso IS NULL);
-
+        
         SET @mensajeDeError += CONCAT_WS(CHAR(10),
                                    IIF(@fechaIngreso IS NULL, 'El guía no está asignado al parque del tour', NULL),
                                    IIF(@fecha_inicio < @fechaIngreso, 'La fecha de autorizacion no puede ser menor a su ingreso en el parque', NULL)

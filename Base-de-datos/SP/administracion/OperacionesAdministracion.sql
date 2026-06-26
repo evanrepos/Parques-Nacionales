@@ -38,14 +38,73 @@ BEGIN
 END;
 GO
 
+CREATE OR ALTER PROCEDURE Administracion.ActualizarCotizacionDivisa
+    @divisa_id VARCHAR(6) = NULL
+AS
+BEGIN
+    DECLARE @cotizacion DECIMAL(18, 2);
+    DECLARE @f_actualizacion SMALLDATETIME = (SELECT f_actualizacion FROM Administracion.Divisas WHERE id = @divisa_id);
+    DECLARE @codigo_iso NVARCHAR(6) = (SELECT codigo_iso FROM Administracion.Divisas WHERE id = @divisa_id);
+    DECLARE @mensajeDeError NVARCHAR(500) = CONCAT_WS(CHAR(10),
+        IIF(@codigo_iso = 'ARS', 'No puede calcularse el valor de la moneda argentina.', NULL),
+        IIF(@divisa_id IS NULL, 'Ni el código ISO ni la descripción pueden ser nulos, debe aportar una referencia.', NULL),
+        IIF(NOT EXISTS (SELECT id FROM Administracion.Divisas WHERE id = @divisa_id), 
+            'La divisa ingresada no existe en la tabla de divisas de la administración.', NULL),
+        IIF(DATEDIFF(HOUR, @f_actualizacion, GETDATE()) < 24, --Se impone como regla que la actualización debe ocurrir 24 horas después. 
+            'La divisa ya fue consultada anteriormente, espere 24 horas después de la última actualización.', NULL)
+        );
+
+    IF LEN(@mensajeDeError) > 0
+    BEGIN
+        ;THROW 50000, @mensajeDeError, 1;
+    END;
+
+    CREATE TABLE #cotizacion (
+        ars NVARCHAR(30),
+        iso NVARCHAR(30)
+    )
+
+    DECLARE @link NVARCHAR(200) = (SELECT LTRIM(CONCAT('https://api.currencyfreaks.com/latest?apikey=63af7539cf5947cba710cd39b1be8797&symbols=ARS,', @codigo_iso), ' '));
+    DECLARE @Object INT;
+    DECLARE @response VARCHAR(8000);
+
+    EXEC sp_OACreate 'MSXML2.ServerXMLHTTP.6.0', @Object OUT;
+
+    EXEC sp_OAMethod @Object, 'open', NULL, 'GET', @link, 'false';
+
+    EXEC sp_OAMethod @Object, 'send';
+
+    EXEC sp_OAGetProperty @Object, 'responseText', @response OUT;
+
+    --SELECT @cotizacion = ARS / EUR, @f_actualizacion = GETDATE() FROM OPENJSON(@response)
+    DECLARE @sql NVARCHAR(MAX);
+    
+    SET @sql = N'
+    INSERT INTO #cotizacion
+        SELECT JSON_VALUE(@response, ''$.rates.ARS''), JSON_VALUE(@response, ''$.rates.'+ @codigo_iso +''')';
+
+    EXEC sp_executesql
+        @sql,
+        N'@response NVARCHAR(MAX)',
+        @response = @response;
+
+    SELECT @cotizacion = CAST(ars AS DECIMAL(18, 2)) / CAST(iso AS DECIMAL(22, 6)), @f_actualizacion = GETDATE() FROM #cotizacion
+
+    EXEC sp_OADestroy @Object;
+
+    UPDATE Administracion.Divisas SET cotizacion = @cotizacion, f_actualizacion = @f_actualizacion WHERE id = @divisa_id;
+END
+GO
+
 CREATE OR ALTER PROCEDURE Administracion.IngresarDivisas 
+    @codigo_iso VARCHAR(6) = NULL,
     @descripcion VARCHAR(100) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
 
     --CAMPOS NULOS
-    IF @descripcion IS NULL
+    IF @descripcion IS NULL OR @codigo_iso IS NULL
     BEGIN
 	RAISERROR('NO ingrese campos NULOS.', 16, 1)
         RETURN
@@ -55,7 +114,7 @@ BEGIN
     IF EXISTS (
         SELECT 1 
         FROM Administracion.Divisas 
-        WHERE descripcion = @descripcion
+        WHERE codigo_iso = @codigo_iso OR descripcion = @descripcion
           )
     BEGIN
 	    RAISERROR('NO ingrese REPETIDOS.', 16, 1)
@@ -64,7 +123,7 @@ BEGIN
 
     --(TRY-CATCH) 
     BEGIN TRY
-        INSERT INTO Administracion.Divisas (descripcion) VALUES (@descripcion)
+        INSERT INTO Administracion.Divisas (codigo_iso, descripcion) VALUES (@codigo_iso, @descripcion)
     END TRY
     BEGIN CATCH
         DECLARE @error VARCHAR(500) = ERROR_MESSAGE()
@@ -222,7 +281,8 @@ CREATE OR ALTER PROCEDURE Administracion.IngresarParques
 	@provincia_id INT = NULL,
 	@direccion VARCHAR(150) = NULL,
 	@nombre VARCHAR(100) = NULL,
-	@superficie INT = NULL
+	@superficie INT = NULL,
+    @año_creacion SMALLINT = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -234,7 +294,7 @@ BEGIN
         RETURN
     END
 
-    --provincia
+    --PROVINCIA
     IF @provincia_id IS NULL OR NOT EXISTS (SELECT id FROM Administracion.Provincias WHERE @provincia_id = id)
     BEGIN
         RAISERROR('La provincia no existe o es inválida.', 16, 1)
@@ -255,14 +315,33 @@ BEGIN
         RETURN
     END
 
+    --AÑO INVÁLIDO
+    IF @año_creacion < 1500 OR @año_creacion > YEAR(GETDATE())
+    BEGIN
+	RAISERROR('Ingrese una fecha posterior al año 1500.', 16, 1)
+        RETURN
+    END
+
+    --REGISTRO REPETIDO
+    IF EXISTS (
+        SELECT 1
+        FROM Administracion.Parques 
+        WHERE nombre = @nombre AND provincia_id = @provincia_id
+          )
+    BEGIN
+	    RAISERROR('NO ingrese REPETIDOS.', 16, 1)
+        RETURN
+    END
+
     --(TRY-CATCH)
     BEGIN TRY
-        INSERT INTO Administracion.Parques (tipo_parque_id, provincia_id, direccion, nombre, superficie_km_2) VALUES (
+        INSERT INTO Administracion.Parques (tipo_parque_id, provincia_id, direccion, nombre, superficie_km_2, año_creacion) VALUES (
         @tipo_parque_id, 
         @provincia_id, 
         @direccion,
         @nombre,
-        @superficie
+        @superficie,
+        @año_creacion
         )
     END TRY
     BEGIN CATCH
@@ -315,6 +394,17 @@ BEGIN
     IF @precio IS NULL OR @precio < 0 --El artículo podría ser GRATUITO, ojo!
     BEGIN
 	RAISERROR('Ingrese un PRECIO válido.', 16, 1)
+        RETURN
+    END
+
+    --REGISTRO REPETIDO
+    IF EXISTS (
+        SELECT 1
+        FROM Administracion.TarifasDeArticulo 
+        WHERE descripcion = @descripcion AND parque_id = @parque_id AND tipo_articulo = @tipo_articulo
+          )
+    BEGIN
+	    RAISERROR('NO ingrese REPETIDOS.', 16, 1)
         RETURN
     END
 
@@ -374,6 +464,17 @@ BEGIN
         RETURN
     END
 
+    --REGISTRO REPETIDO
+    IF EXISTS (
+        SELECT 1
+        FROM Administracion.Ajustes 
+        WHERE parque_id = @parque_id AND descripcion = @descripcion
+          )
+    BEGIN
+	    RAISERROR('NO ingrese REPETIDOS.', 16, 1)
+        RETURN
+    END
+
     --(TRY-CATCH)
     BEGIN TRY
         INSERT INTO Administracion.Ajustes (parque_id, tipo_articulo, tipo_ajuste, descripcion, porcentaje) VALUES (
@@ -403,6 +504,17 @@ BEGIN
     IF @parque_id IS NULL OR NOT EXISTS (SELECT id FROM Administracion.Parques WHERE @parque_id = id)
     BEGIN
         RAISERROR('El PARQUE no existe o es inválido.', 16, 1)
+        RETURN
+    END
+
+    --REGISTRO REPETIDO
+    IF EXISTS (
+        SELECT 1
+        FROM Administracion.PuntosDeVenta 
+        WHERE parque_id = @parque_id AND ISNULL(descripcion, '') = ISNULL(@descripcion, '')
+          )
+    BEGIN
+	    RAISERROR('NO ingrese REPETIDOS.', 16, 1)
         RETURN
     END
 
@@ -465,13 +577,14 @@ GO
 
 CREATE OR ALTER PROCEDURE Administracion.ActualizarDivisas
     @id INT = NULL,
+    @codigo_iso VARCHAR(6) = NULL,
     @descripcion_vieja VARCHAR(30) = NULL,
     @descripcion_nueva VARCHAR(30) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
     --CAMPOS NULOS
-    IF (@id IS NULL AND @descripcion_vieja IS NULL) OR @descripcion_nueva IS NULL
+    IF (@id IS NULL AND @codigo_iso IS NULL AND @descripcion_vieja IS NULL) OR @descripcion_nueva IS NULL
     BEGIN
 	    RAISERROR('NO ingrese campos NULOS.', 16, 1)
         RETURN
@@ -479,7 +592,7 @@ BEGIN
 
     --PARÁMETROS INEXISTENTES
     DECLARE @id_real_div INT
-    SELECT @id_real_div = id FROM Administracion.Divisas WHERE @id = id OR @descripcion_vieja = descripcion
+    SELECT @id_real_div = id FROM Administracion.Divisas WHERE @id = id OR @codigo_iso = codigo_iso OR @descripcion_vieja = descripcion
 
     IF @id_real_div IS NULL
     BEGIN
@@ -692,6 +805,7 @@ CREATE OR ALTER PROCEDURE Administracion.ActualizarParques
     @direccion VARCHAR(150) = NULL,
 	@nombre VARCHAR(100) = NULL,
 	@superficie_km_2 INT = NULL,
+    @año_creacion SMALLINT = NULL,
     @direccion_nueva VARCHAR(150) = NULL,
 	@nombre_nuevo VARCHAR(100) = NULL,
 	@superficie_nueva INT = NULL
@@ -699,7 +813,7 @@ AS
 BEGIN
     SET NOCOUNT ON;
     --CAMPOS NULOS
-    IF (@id IS NULL AND @tipo_parque_id IS NULL AND @provincia_id IS NULL AND @direccion IS NULL AND @nombre IS NULL AND @superficie_km_2 IS NULL) OR 
+    IF (@id IS NULL AND @tipo_parque_id IS NULL AND @provincia_id IS NULL AND @direccion IS NULL AND @nombre IS NULL AND @superficie_km_2 IS NULL AND @año_creacion IS NULL) OR 
         (@direccion_nueva IS NULL AND @nombre_nuevo IS NULL AND @superficie_nueva IS NULL)
     BEGIN
 	    RAISERROR('NO ingrese campos NULOS.', 16, 1)
@@ -709,7 +823,7 @@ BEGIN
     --PARÁMETROS INEXISTENTES
     DECLARE @idRealParque INT
     SELECT @idRealParque = id FROM Administracion.Parques 
-        WHERE @id = id OR @tipo_parque_id = tipo_parque_id OR @provincia_id = provincia_id OR @direccion = direccion OR @nombre = nombre OR @superficie_km_2 = superficie_km_2
+        WHERE @id = id OR @tipo_parque_id = tipo_parque_id OR @provincia_id = provincia_id OR @direccion = direccion OR @nombre = nombre OR @superficie_km_2 = superficie_km_2 OR @año_creacion = año_creacion
 
     IF @idRealParque IS NULL
     BEGIN
@@ -910,12 +1024,13 @@ GO
 
 CREATE OR ALTER PROCEDURE Administracion.EliminarDivisas
     @id INT = NULL,
+    @codigo_iso VARCHAR(6) = NULL,
     @descripcion VARCHAR(100) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
     --CAMPOS NULOS
-    IF @id IS NULL AND @descripcion IS NULL
+    IF @id IS NULL AND @codigo_iso IS NULL AND @descripcion IS NULL
     BEGIN
 	    RAISERROR('NO ingrese campos NULOS.', 16, 1)
         RETURN
@@ -923,7 +1038,7 @@ BEGIN
 
     --PARÁMETROS INEXISTENTES
     DECLARE @idRealDiv INT
-    SELECT @idRealDiv = id FROM Administracion.Divisas WHERE @id = id OR @descripcion = descripcion
+    SELECT @idRealDiv = id FROM Administracion.Divisas WHERE @id = id OR @codigo_iso = codigo_iso OR @descripcion = descripcion
 
     IF @idRealDiv IS NULL
     BEGIN
@@ -1125,7 +1240,8 @@ CREATE OR ALTER PROCEDURE Administracion.EliminarParques
 	@provincia_id INT = NULL,
     @direccion VARCHAR(150) = NULL,
 	@nombre VARCHAR(100) = NULL,
-	@superficie_km_2 INT = NULL
+	@superficie_km_2 INT = NULL,
+    @año_creacion SMALLINT = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -1139,7 +1255,7 @@ BEGIN
     --PARÁMETROS INEXISTENTES
     DECLARE @idRealParque INT
     SELECT @idRealParque = id FROM Administracion.Parques 
-        WHERE @id = id OR @tipo_parque_id = tipo_parque_id OR @provincia_id = provincia_id OR @direccion = direccion OR @nombre = nombre OR @superficie_km_2 = superficie_km_2
+        WHERE @id = id OR @tipo_parque_id = tipo_parque_id OR @provincia_id = provincia_id OR @direccion = direccion OR @nombre = nombre OR @superficie_km_2 = superficie_km_2 OR @año_creacion = año_creacion
 
     IF @idRealParque IS NULL
     BEGIN

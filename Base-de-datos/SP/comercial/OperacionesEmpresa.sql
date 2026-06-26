@@ -5,7 +5,6 @@
 
    Participan: 
      - Iván Gonzalez Fernandez
-     - Matías Josué Lista
 
    #####################################
    #       OperacionesEmpresa.sql      #

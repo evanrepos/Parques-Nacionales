@@ -11,7 +11,12 @@ AS
 BEGIN
     SET NOCOUNT ON
 
-    DECLARE @mensajeDeError VARCHAR(500) = IIF(@nombre IS NULL, '@nombre no puede ser nulo', NULL);
+    --DECLARE @mensajeDeError VARCHAR(500) = IIF(@nombre IS NULL, '@nombre no puede ser nulo', NULL);
+
+    DECLARE @mensajeDeError VARCHAR(500) = CONCAT_WS(CHAR(10),
+        IIF(@nombre IS NULL, '@nombre no puede ser nulo', NULL),
+        IIF(EXISTS (SELECT 1 FROM Comercial.ActividadesDeConcesiones WHERE nombre = @nombre), 'Ya existe una actividad con ese nombre.', NULL)
+        );
 
     IF (LEN(@mensajeDeError) > 0)
     BEGIN
@@ -155,7 +160,7 @@ BEGIN
         -- SCOPE_IDENTITY() devuelve el último ID insertado!
         SET @id = CAST(SCOPE_IDENTITY() AS INT);
     
-        exec Comercial.CrearCuotasConcesion @id, @fecha_inicio, @fecha_fin;
+        EXEC Comercial.CrearCuotasConcesion @id, @fecha_inicio, @fecha_fin;
 
         COMMIT TRANSACTION
     END TRY
@@ -319,58 +324,49 @@ END;
 GO
 
 CREATE OR ALTER PROCEDURE Comercial.RegistrarPagoDeCuota
-    @id_concesion INT,
-    @id_metodo_pago INT,
+    @id_cuota INT = NULL,
+    @id_concesion INT = NULL,
+    @id_metodo_pago INT = NULL,
+    @fecha_vencimiento DATE = NULL,
     @fecha_pago DATE = NULL
 AS
 BEGIN
     SET NOCOUNT ON
 
-    -- Defino este booleano para poder presentar un unico mensaje de error.
-    DECLARE @concesionExiste BIT = IIF(EXISTS (SELECT 1 FROM Comercial.Concesiones WHERE id = @id_concesion), 1, 0 );
-    
-    if @fecha_pago is null
-    BEGIN 
-        SET @fecha_pago = GETDATE();
+    --SOLICITA EL ID DE PAGO A ABONAR, AUNQUE PUEDE VALERSE DE UNA FECHA DE GENERACION, Y SOLICITA EL ID DE CONCESION.
+    --LUEGO NECESITA EL METODO DE PAGO Y LA FECHA DE ABONO.
+
+    --SE BUSCA LA CUOTA CON LOS PARAMETROS DADOS.
+    DECLARE @cuota_id INT = NULL;
+    IF @id_cuota IS NOT NULL
+    BEGIN
+        SELECT @cuota_id = id FROM Comercial.CuotasCanon WHERE id = @id_cuota AND f_pago IS NULL;
+    END
+    ELSE
+    BEGIN
+        SELECT @cuota_id = id FROM Comercial.CuotasCanon WHERE f_vencimiento = @fecha_vencimiento AND concesion_id = @id_concesion AND f_pago IS NULL;
     END
 
+    --LUEGO SE BUSCA LA VALIDEZ DE LOS PARAMETROS.
     DECLARE @mensajeDeError VARCHAR(500) = CONCAT_WS(CHAR(10),
-        IIF(@concesionExiste = 0, 'La concesion no existe', NULL),
+        IIF(@cuota_id IS NULL, 'La cuota no existe, o ya fue abonada.', NULL),
+        IIF(@id_cuota IS NULL AND NOT EXISTS (SELECT 1 FROM Comercial.Concesiones WHERE id = @id_concesion), 'La concesion no existe', NULL),
+        IIF(NOT EXISTS (SELECT 1 FROM Administracion.FormasDePago WHERE id = @id_metodo_pago), 'El método de pago no existe', NULL),
         IIF(@id_metodo_pago IS NULL, 'Se debe indicar un metodo de pago.', NULL),
-        IIF(NOT EXISTS (SELECT 1 FROM Administracion.FormasDePago WHERE id = @id_metodo_pago), 'El método de pago no existe', NULL)
+        IIF(@id_cuota IS NULL AND (@fecha_vencimiento IS NULL OR @id_concesion IS NULL), 'Debe indicar el ID de cuota o bien la combinación concesión + fecha de vencimiento.', NULL)
     );
-
-    IF (@concesionExiste = 0) -- Si la concesion no existe no compruebo la última cuota pendiente, ni el ultimo pago
+    --SI NO ES VALIDO, SE DEVUELVE MENSAJE DE ERROR.
+    IF (LEN(@mensajeDeError) > 0)
     BEGIN
         ;THROW 50000, @mensajeDeError, 1;
     END;
 
-    -- Para registrar el pago de una cuota, primero hay que ver si a la concesion
-    -- le queda AL MENOS una cuota pendiente.
-    DECLARE @cuota_id INT;
+    IF @fecha_pago IS NULL
+    BEGIN 
+        SET @fecha_pago = GETDATE();
+    END    
 
-    SET @cuota_id = (SELECT TOP 1 id
-    FROM Comercial.CuotasCanon
-    WHERE f_pago IS NULL 
-          AND concesion_id = @id_concesion
-    ORDER BY f_pago ASC); -- Obtiene la cuota más vieja sin pagar
-
-    DECLARE @fechaUltimoPago DATE;
-    SET @fechaUltimoPago = (SELECT TOP 1 f_pago 
-            FROM Comercial.CuotasCanon 
-            WHERE concesion_id = @id_concesion 
-                    AND f_pago IS NOT NULL
-            ORDER BY f_pago ASC); -- Obtiene la última fecha de pago de una cuota (si se hizo alguno)
-
-    SET @mensajeDeError = CONCAT_WS(CHAR(10),
-            IIF(@cuota_id IS NULL, 'La concesión no posee cuotas pendientes.', NULL),
-            IIF(@fechaUltimoPago > @fecha_pago, 'La fecha de pago no puede ser anterior, al último pago.', NULL));
-
-    IF (LEN(@mensajeDeError) > 0) -- Si la concesion no existe no compruebo la última cuota pendiente, ni el ultimo pago
-    BEGIN
-        ;THROW 50000, @mensajeDeError, 1;
-    END;
-
+    --EN CASO DE ESTAR TODO BIEN, SE CONFIRMA EL PAGO.
     UPDATE Comercial.CuotasCanon 
     SET forma_pago_id = @id_metodo_pago, f_pago = @fecha_pago
     WHERE id = @cuota_id;

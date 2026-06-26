@@ -7,7 +7,6 @@ GO
 -- =============================================
 -- Ticket de Venta (GENERABLE)
 -- =============================================
-
 CREATE OR ALTER PROCEDURE Ventas.GenerarTicketsDeVenta (@fecha_inicio DATE)
 AS
 BEGIN
@@ -22,7 +21,7 @@ BEGIN
             DECLARE @cotizacion DECIMAL(18, 2);
             DECLARE @f_actualizacion DATETIME;
             DECLARE @f_inicio DATETIME = CONCAT(CAST(CAST(@fecha_inicio AS DATE) AS VARCHAR) , 'T00:00:00');
-            DECLARE @f_fin DATETIME = DATEADD(HOUR, 10, @fecha_inicio);
+            DECLARE @f_fin DATETIME = DATEADD(HOUR, 10, @f_inicio);
             
             SELECT TOP 1 @punto_venta_id = id, @parque_id = parque_id FROM Administracion.PuntosDeVenta ORDER BY NEWID();
             WHILE @f_inicio <= @f_fin
@@ -91,9 +90,6 @@ BEGIN
 END
 GO
 
-EXEC Ventas.GenerarTicketsDeVenta
-GO
-
 -- =============================================
 -- Detalle de Venta (GENERABLE)
 -- =============================================
@@ -127,12 +123,13 @@ BEGIN
                 DECLARE @indice_detalle INT = 1;
                 DECLARE @cant_detalles INT = (1 + ABS(CHECKSUM(NEWID())) % 5);
                 INSERT INTO #detalles_ticket
-                    SELECT TOP (@cant_detalles) * FROM Administracion.TarifasDeArticulo WHERE parque_id = @parque_id
+                    SELECT TOP (@cant_detalles) id, parque_id, tipo_articulo, duracion, cupo, precio FROM Administracion.TarifasDeArticulo WHERE parque_id = @parque_id
+
                 WHILE @indice_detalle <= @cant_detalles
                 BEGIN
                     --TARIFA
                     DECLARE @tarifa_id INT;
-                    SELECT @tarifa_id = tarifa_id FROM #detalles_ticket
+                    SELECT @tarifa_id = tarifa_id FROM #detalles_ticket WHERE id = @indice_detalle
 
                     --TIPOS DE VISITANTE
                     DECLARE @tipo_visitante INT;
@@ -160,7 +157,7 @@ BEGIN
                     END
   
                     --CANTIDAD DE UNIDADES
-                    DECLARE @cantidad INT = 1 + CAST(RAND(CHECKSUM(NEWID())) AS INT) * ABS(CHECKSUM(NEWID())) % 10;
+                    DECLARE @cantidad INT = 1 + CAST(0.5 + RAND(CHECKSUM(NEWID())) AS INT) * ABS(CHECKSUM(NEWID())) % 10;
 
                     --GENERACION DETALLE DE TICKET
                     EXEC Ventas.InsertarDetallesDeTicket @ticket_id, @tarifa_id, @tipo_visitante, @cantidad
@@ -191,13 +188,9 @@ BEGIN
 END
 GO
 
-EXEC Ventas.GenerarDetallesDeVenta
-GO
-
 -- =============================================
 -- Tours (GENERABLE)
 -- =============================================
-
 --Generar TOURS para cada parque en forma periódica, y no a pedido. Por cada pedido, restar el cupo de tour.
 CREATE OR ALTER PROCEDURE Ventas.GenerarTours (@fecha_inicio DATE)
 AS
@@ -302,43 +295,65 @@ BEGIN
     END CATCH;
 END
 GO
-
-EXEC Ventas.GenerarTours '2026-05-01'
-GO
 --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+-- =============================================
+-- CARGA
+-- =============================================
+
+CREATE OR ALTER PROCEDURE Ventas.GenerarDatos
+AS
+BEGIN
+    BEGIN TRY
+        BEGIN TRANSACTION;
+            EXEC Ventas.GenerarTicketsDeVenta '2026-05-01'
+            
+            EXEC Ventas.GenerarTours '2026-05-01'
+        --COMMIT TRANSACTION
+        --BEGIN TRANSACTION
+            EXEC Ventas.GenerarDetallesDeVenta 
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+
+        IF @@TRANCOUNT > 0
+        BEGIN
+            DELETE FROM Ventas.TicketsDeVenta
+            DBCC CHECKIDENT ('Ventas.TicketsDeVenta', 'RESEED', 0)
+            DELETE FROM Ventas.DetallesDeTicket
+            DELETE FROM Ventas.Entradas
+            DBCC CHECKIDENT ('Ventas.Entradas', 'RESEED', 0)
+            DELETE FROM Ventas.Actividades
+            DBCC CHECKIDENT ('Ventas.Actividades', 'RESEED', 0)
+            DELETE FROM Ventas.Tours
+            DBCC CHECKIDENT ('Ventas.Tours', 'RESEED', 0)
+            DELETE FROM Ventas.ParticipaEnTour
+            ROLLBACK TRANSACTION;
+        END
+        DECLARE @Mensaje NVARCHAR(MAX);
+
+        SET @Mensaje = CONCAT(
+            'Error N° ', ERROR_NUMBER(),
+            '. Línea: ', ERROR_LINE(),
+            '. Procedimiento: ', ISNULL(ERROR_PROCEDURE(), 'N/A'),
+            '. Descripción: ', ERROR_MESSAGE()
+        );
+
+        THROW 50000, @Mensaje, 1;
+
+    END CATCH;
+END
+GO
+
+--EXEC Ventas.GenerarDatos
 
 /*
-BEGIN TRY
-    BEGIN TRANSACTION;
-        EXEC Ventas.GenerarTicketsDeVenta
-
-        EXEC Ventas.GenerarDetallesDeVenta
-        
-        EXEC Ventas.GenerarTours
-    COMMIT TRANSACTION;
-END TRY
-BEGIN CATCH
-
-    IF @@TRANCOUNT > 0
-        ROLLBACK TRANSACTION;
-
-    DECLARE @Mensaje NVARCHAR(MAX);
-
-    SET @Mensaje = CONCAT(
-        'Error N° ', ERROR_NUMBER(),
-        '. Línea: ', ERROR_LINE(),
-        '. Procedimiento: ', ISNULL(ERROR_PROCEDURE(), 'N/A'),
-        '. Descripción: ', ERROR_MESSAGE()
-    );
-
-    THROW 50000, @Mensaje, 1;
-
-END CATCH;
-
+SET NOCOUNT OFF
 SELECT * FROM Ventas.TicketsDeVenta
 SELECT * FROM Ventas.DetallesDeTicket
 SELECT * FROM Ventas.Entradas
 SELECT * FROM Ventas.Actividades
 SELECT * FROM Ventas.Tours
 SELECT * FROM Ventas.ParticipaEnTour
+ORDER BY tour_id
+SET NOCOUNT ON
 */

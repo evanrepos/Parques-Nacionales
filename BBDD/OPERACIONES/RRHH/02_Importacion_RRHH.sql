@@ -560,45 +560,55 @@ BEGIN
 END
 GO
 --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+-- =============================================
+-- CARGA
+-- =============================================
+
+CREATE OR ALTER PROCEDURE RRHH.GenerarDatos
+AS
+BEGIN
+    BEGIN TRY
+        BEGIN TRANSACTION;
+            EXEC RRHH.GenerarGuiasTuristicos
+        
+            EXEC RRHH.GenerarGuardaparques
+        COMMIT TRANSACTION
+
+        BEGIN TRANSACTION
+            EXEC RRHH.GenerarAsignacionesDeGuia
+        
+            EXEC RRHH.GenerarDestitucionesDeGuia
+        
+            EXEC RRHH.GenerarAsignacionesDeGuardaparques
+        
+            EXEC RRHH.GenerarDestitucionesDeGuardaparques
+        
+            EXEC RRHH.GenerarAutorizacionesDeGuia
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+
+        DECLARE @Mensaje NVARCHAR(MAX);
+
+        SET @Mensaje = CONCAT(
+            'Error N° ', ERROR_NUMBER(),
+            '. Línea: ', ERROR_LINE(),
+            '. Procedimiento: ', ISNULL(ERROR_PROCEDURE(), 'N/A'),
+            '. Descripción: ', ERROR_MESSAGE()
+        );
+
+        THROW 50000, @Mensaje, 1;
+
+    END CATCH;
+END
+GO
+
+--EXEC RRHH.GenerarDatos
 
 /*
-BEGIN TRY
-    BEGIN TRANSACTION;
-        EXEC RRHH.GenerarGuiasTuristicos
-        
-        EXEC RRHH.GenerarGuardaparques
-    COMMIT TRANSACTION
-
-    BEGIN TRANSACTION
-        EXEC RRHH.GenerarAsignacionesDeGuia
-        
-        EXEC RRHH.GenerarDestitucionesDeGuia
-        
-        EXEC RRHH.GenerarAsignacionesDeGuardaparques
-        
-        EXEC RRHH.GenerarDestitucionesDeGuardaparques
-        
-        EXEC RRHH.GenerarAutorizacionesDeGuia
-    COMMIT TRANSACTION;
-END TRY
-BEGIN CATCH
-
-    IF @@TRANCOUNT > 0
-        ROLLBACK TRANSACTION;
-
-    DECLARE @Mensaje NVARCHAR(MAX);
-
-    SET @Mensaje = CONCAT(
-        'Error N° ', ERROR_NUMBER(),
-        '. Línea: ', ERROR_LINE(),
-        '. Procedimiento: ', ISNULL(ERROR_PROCEDURE(), 'N/A'),
-        '. Descripción: ', ERROR_MESSAGE()
-    );
-
-    THROW 50000, @Mensaje, 1;
-
-END CATCH;
-
 SELECT * FROM RRHH.Guias
 SELECT * FROM RRHH.Guardaparques
 SELECT * FROM RRHH.AsignacionesDeGuias

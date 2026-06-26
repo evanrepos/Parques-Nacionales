@@ -1,37 +1,4 @@
---CREACION BASE DE DATOS
-IF NOT EXISTS (SELECT name FROM sys.databases WHERE name = 'ParquesNacionales')
-BEGIN
-	CREATE DATABASE ParquesNacionales
-	COLLATE Modern_Spanish_CI_AI
-END
-GO
-
 USE ParquesNacionales;
-GO
-
---CREACION ESQUEMAS
-IF SCHEMA_ID('Ventas') IS NULL
-BEGIN
-    EXEC('CREATE SCHEMA Ventas;');
-END
-GO
-
-IF SCHEMA_ID('Comercial') IS NULL
-BEGIN
-    EXEC('CREATE SCHEMA Comercial;');
-END
-GO
-
-IF SCHEMA_ID('RRHH') IS NULL
-BEGIN
-    EXEC('CREATE SCHEMA RRHH;');
-END
-GO
-
-IF SCHEMA_ID('Administracion') IS NULL
-BEGIN
-    EXEC('CREATE SCHEMA Administracion;');
-END
 GO
 
 --CREACION TABLAS
@@ -51,10 +18,10 @@ BEGIN
         id INT PRIMARY KEY IDENTITY(1,1),
         codigo_iso VARCHAR(6) NOT NULL,
         descripcion VARCHAR(100) NOT NULL,
-        cotizacion DECIMAL(19, 6) NOT NULL,
+        cotizacion DECIMAL(19, 6) NOT NULL
+            CONSTRAINT DF_Divisas_Cotizacion DEFAULT 0,
         f_actualizacion SMALLDATETIME NOT NULL
-        CONSTRAINT DF_Cotizacion DEFAULT 0 FOR cotizacion,
-        CONSTRAINT DF_Fecha_Actualizacion DEFAULT GETDATE() FOR f_actualizacion,
+            CONSTRAINT DF_Divisas_Fecha_Actualizacion DEFAULT GETDATE(),
     );
 END
 GO
@@ -106,8 +73,8 @@ BEGIN
     	nombre VARCHAR(100) NOT NULL,
     	superficie_km_2 INT NOT NULL,
         año_creacion SMALLINT NOT NULL,
-        CONSTRAINT CK_Superficie CHECK (superficie_km_2 > 0),
-        CONSTRAINT CK_Año_Creacion CHECK (1500 < año_creacion AND año_creacion <= YEAR(GETDATE())),
+        CONSTRAINT CK_Parques_Superficie CHECK (superficie_km_2 > 0),
+        CONSTRAINT CK_Parques_Año_Creacion CHECK (1500 < año_creacion AND año_creacion <= YEAR(GETDATE())),
     	CONSTRAINT FK_Parques_Provincias FOREIGN KEY (provincia_id) REFERENCES Administracion.Provincias(id),
     	CONSTRAINT FK_Parques_Tipos FOREIGN KEY (tipo_parque_id) REFERENCES Administracion.TiposDeParque(id)
     );
@@ -124,10 +91,10 @@ BEGIN
         duracion INT NULL,
         cupo INT NULL,
         precio DECIMAL(10, 2) NOT NULL,
-        CONSTRAINT CK_Tipo_Articulo CHECK (tipo_articulo IN ('E', 'T', 'A')),
-        CONSTRAINT CK_Precio CHECK (precio >= 0),
-        CONSTRAINT CK_Duracion CHECK (tipo_articulo <> 'T' OR (duracion IS NOT NULL OR duracion > 0)),
-        CONSTRAINT CK_Cupo CHECK (tipo_articulo <> 'T' OR (cupo IS NOT NULL OR cupo > 0)),
+        CONSTRAINT CK_Tarifas_Tipo_Articulo CHECK (tipo_articulo IN ('E', 'T', 'A')),
+        CONSTRAINT CK_Tarifas_Precio CHECK (precio >= 0),
+        CONSTRAINT CK_Tarifas_Duracion CHECK (tipo_articulo <> 'T' OR (duracion IS NOT NULL OR duracion > 0)),
+        CONSTRAINT CK_Tarifas_Cupo CHECK (tipo_articulo <> 'T' OR (cupo IS NOT NULL OR cupo > 0)),
         CONSTRAINT FK_Tarifas_Parques FOREIGN KEY (parque_id) REFERENCES Administracion.Parques(id)
     );
 END
@@ -142,8 +109,8 @@ BEGIN
         tipo_ajuste CHAR(1) NOT NULL,
         descripcion VARCHAR(30) NOT NULL,
         porcentaje SMALLINT NOT NULL,
-        CONSTRAINT CK_Tipo_Articulo CHECK (tipo_articulo IN ('E', 'T', 'A')),
-        CONSTRAINT CK_Tipo_Ajuste CHECK (tipo_ajuste IN ('F', 'V', 'TE')), -- F: Fecha, V: Visitante, TE: Tipo Entrada
+        CONSTRAINT CK_Ajustes_Tipo_Articulo CHECK (tipo_articulo IN ('E', 'T', 'A')),
+        CONSTRAINT CK_Ajustes_Tipo_Ajuste CHECK (tipo_ajuste IN ('F', 'V', 'TE')), -- F: Fecha, V: Visitante, TE: Tipo Entrada
         CONSTRAINT FK_Ajustes_Parques FOREIGN KEY (parque_id) REFERENCES Administracion.Parques(id)
     );
 END
@@ -165,13 +132,14 @@ IF OBJECT_ID('RRHH.Guardaparques', 'U') IS NULL
 BEGIN
     CREATE TABLE RRHH.Guardaparques (
         id INT PRIMARY KEY IDENTITY(1,1),
-        cuil BIGINT UNIQUE NOT NULL,
+        cuil BIGINT NOT NULL,
         nombre VARCHAR(100) NOT NULL,
         apellido VARCHAR(100) NOT NULL,
-        esta_activo BIT NOT NULL,
+        esta_activo BIT NOT NULL
+            CONSTRAINT DF_Guardaparques_Esta_Activo DEFAULT 0,
         f_nacimiento DATE NOT NULL,
-        CONSTRAINT DF_Esta_Activo DEFAULT 0 FOR esta_activo,
-        CONSTRAINT CK_Cuil CHECK (cuil BETWEEN 20000000001 AND 339999999999)
+        CONSTRAINT UQ_Guardaparques_Cuil UNIQUE (cuil),
+        CONSTRAINT CK_Guardaparques_Cuil CHECK (cuil BETWEEN 20000000001 AND 339999999999)
     );
 END
 GO
@@ -195,13 +163,14 @@ IF OBJECT_ID('RRHH.Guias', 'U') IS NULL
 BEGIN
     CREATE TABLE RRHH.Guias (
     	id INT PRIMARY KEY IDENTITY(1,1),
-    	cuil BIGINT UNIQUE NOT NULL,
+    	cuil BIGINT NOT NULL,
     	nombre VARCHAR(100) NOT NULL,
     	apellido VARCHAR(100) NOT NULL,
-        esta_activo BIT NOT NULL /*DEFAULT 0*/,
+        esta_activo BIT NOT NULL
+            CONSTRAINT DF_Guias_Esta_Activo DEFAULT 0,
         f_nacimiento DATE NOT NULL,
-        CONSTRAINT DF_Esta_Activo DEFAULT 0 FOR esta_activo,
-        CONSTRAINT CK_Cuil CHECK (cuil BETWEEN 20000000001 AND 339999999999)
+        CONSTRAINT UQ_Guias_Cuil UNIQUE (cuil),
+        CONSTRAINT CK_Guias_Cuil CHECK (cuil BETWEEN 20000000001 AND 339999999999)
     );
 END
 GO
@@ -215,8 +184,8 @@ BEGIN
         f_ingreso DATE NOT NULL,
         f_egreso DATE,
         motivo_egreso VARCHAR(200),
-        CONSTRAINT FK_AsignacionesGuias_Parques FOREIGN KEY (parque_id) REFERENCES Administracion.Parques(id),
-        CONSTRAINT FK_Asignaciones_Guia FOREIGN KEY (guia_id) REFERENCES RRHH.Guias(id)
+        CONSTRAINT FK_AsignacionesDeGuias_Parques FOREIGN KEY (parque_id) REFERENCES Administracion.Parques(id),
+        CONSTRAINT FK_AsignacionesDeGuias_Guia FOREIGN KEY (guia_id) REFERENCES RRHH.Guias(id)
     );
 END
 GO
@@ -229,8 +198,8 @@ BEGIN
         guia_id INT NOT NULL,
         f_inicio DATE NOT NULL,
         f_fin DATE NULL,
-        CONSTRAINT FK_Autorizaciones_Articulos FOREIGN KEY (articulo_id) REFERENCES Administracion.TarifasDeArticulo(id),
-        CONSTRAINT FK_Autorizaciones_Guias FOREIGN KEY (guia_id) REFERENCES RRHH.Guias(id)
+        CONSTRAINT FK_AutorizacionesDeGuias_Articulos FOREIGN KEY (articulo_id) REFERENCES Administracion.TarifasDeArticulo(id),
+        CONSTRAINT FK_AutorizacionesDeGuias_Guias FOREIGN KEY (guia_id) REFERENCES RRHH.Guias(id)
     );
 END
 GO
@@ -253,8 +222,8 @@ BEGIN
     	razon_social VARCHAR(100) NOT NULL,
     	direccion_legal VARCHAR(100) NOT NULL,
     	comienzo_actividad DATE NOT NULL
-        CONSTRAINT UQ_Cuit UNIQUE (cuit),
-        CONSTRAINT CK_Cuit CHECK (cuit BETWEEN 20000000001 AND 339999999999)
+        CONSTRAINT UQ_Empresas_Cuit UNIQUE (cuit),
+        CONSTRAINT CK_Empresas_Cuit CHECK (cuit BETWEEN 20000000001 AND 339999999999)
     );
 END
 GO
@@ -301,10 +270,10 @@ BEGIN
         forma_pago_id INT NOT NULL,
         divisa_id INT NOT NULL,
         cotizacion DECIMAL(19, 6),
-        f_generacion SMALLDATETIME NOT NULL /*DEFAULT GETDATE()*/,
+        f_generacion SMALLDATETIME NOT NULL
+            CONSTRAINT DF_Tickets_Fecha_Generacion DEFAULT GETDATE(),
         tipo_fecha_id INT NOT NULL,
         total DECIMAL(12, 2),
-        CONSTRAINT DF_Fecha_Generacion DEFAULT GETDATE() FOR f_generacion,
         CONSTRAINT FK_Ticket_Puntos_De_Venta FOREIGN KEY (punto_venta_id, parque_id) REFERENCES Administracion.PuntosDeVenta(id, parque_id),
         CONSTRAINT FK_Ticket_Pagos FOREIGN KEY (forma_pago_id) REFERENCES Administracion.FormasDePago(id),
         CONSTRAINT FK_Ticket_Divisas FOREIGN KEY (divisa_id) REFERENCES Administracion.Divisas(id),
@@ -316,17 +285,16 @@ GO
 IF OBJECT_ID('Ventas.DetallesDeTicket', 'U') IS NULL
 BEGIN
     CREATE TABLE Ventas.DetallesDeTicket (
-        nro_detalle SMALLINT NOT NULL, --Si se deja así, hay que almacenar números enteros positivos en forma ascendente, por cada venta iniciada.
+        nro_detalle SMALLINT NOT NULL,
         ticket_id INT NOT NULL,
         tarifa_id INT NOT NULL,
         tipo_visitante_id INT NOT NULL,
-        cantidad SMALLINT,
+        cantidad SMALLINT
+            CONSTRAINT DF_Detalles_Cantidad_Unidades DEFAULT 1,
         precio_ud DECIMAL(10, 2),
         subtotal DECIMAL(12, 2),
-        CONSTRAINT DF_Cantidad_Unidades DEFAULT 1 FOR cantidad,
         CONSTRAINT PK_Detalles_Tickets PRIMARY KEY CLUSTERED (ticket_id, nro_detalle),
         CONSTRAINT FK_Detalles_Tickets FOREIGN KEY (ticket_id) REFERENCES Ventas.TicketsDeVenta(id),
-        --CONSTRAINT FK_Detalles_Ajustes FOREIGN KEY (ajuste_id) REFERENCES Administracion.Ajustes(id),
         CONSTRAINT FK_Detalles_Visitante FOREIGN KEY (tipo_visitante_id) REFERENCES Administracion.TiposDeVisitante(id),
         CONSTRAINT FK_Detalles_Articulos FOREIGN KEY (tarifa_id) REFERENCES Administracion.TarifasDeArticulo(id)
     );
@@ -339,12 +307,12 @@ BEGIN
         id INT PRIMARY KEY IDENTITY(1, 1),
         tarifa_id INT NOT NULL,
         guia_id INT NOT NULL,
-        f_visita SMALLDATETIME /*DEFAULT GETDATE()*/ NOT NULL,
+        f_visita SMALLDATETIME NOT NULL
+            CONSTRAINT DF_Tours_Fecha_Visita DEFAULT GETDATE(),
         precio DECIMAL(10, 2),
         cant_cupos TINYINT, --Se agrega la cantidad de cupos, teniendo en cuenta que las actividades son diarias, y no por convocatoria.
-        CONSTRAINT DF_Fecha_Visita DEFAULT GETDATE() FOR f_visita,
-        CONSTRAINT CK_Precio CHECK (precio >= 0),
-        CONSTRAINT CK_Cantidad_Cupos CHECK (cant_cupos > 0),
+        CONSTRAINT CK_Tours_Precio CHECK (precio >= 0),
+        CONSTRAINT CK_Tours_Cantidad_Cupos CHECK (cant_cupos >= 0),
         CONSTRAINT FK_Tours_Tarifas FOREIGN KEY (tarifa_id) REFERENCES Administracion.TarifasDeArticulo(id),
         CONSTRAINT FK_Tours_Guias FOREIGN KEY (guia_id) REFERENCES RRHH.Guias(id)
     );
@@ -357,23 +325,23 @@ BEGIN
         id INT PRIMARY KEY IDENTITY(1, 1),
         tarifa_id INT NOT NULL,
         ticket_id INT NOT NULL,
-        f_visita SMALLDATETIME NOT NULL /*DEFAULT GETDATE()*/,
+        f_visita SMALLDATETIME NOT NULL
+            CONSTRAINT DF_Actividades_Fecha_Visita DEFAULT GETDATE(),
         precio DECIMAL(10, 2) NOT NULL,
-        CONSTRAINT DF_Fecha_Visita DEFAULT GETDATE() FOR f_visita,
-        CONSTRAINT CK_Precio CHECK (precio >= 0),
+        CONSTRAINT CK_Actividades_Precio CHECK (precio >= 0),
         CONSTRAINT FK_Actividades_Tarifas FOREIGN KEY (tarifa_id) REFERENCES Administracion.TarifasDeArticulo(id),
         CONSTRAINT FK_Actividades_Tickets FOREIGN KEY (ticket_id) REFERENCES Ventas.TicketsDeVenta(id)
     );
 END
 GO
 
-IF OBJECT_ID('Ventas.ParticipaEnActividad', 'U') IS NULL
+IF OBJECT_ID('Ventas.ParticipaEnTour', 'U') IS NULL
 BEGIN
     CREATE TABLE Ventas.ParticipaEnTour (
-        actividad_id INT NOT NULL, --OJO! Esta tabla puede tomar actividades que no sean tours.
+        tour_id INT NOT NULL, --OJO! Esta tabla puede tomar actividades que no sean tours.
         ticket_id INT NOT NULL,
-        CONSTRAINT FK_En_Actividad FOREIGN KEY (actividad_id) REFERENCES Ventas.Actividades(id),
-        CONSTRAINT FK_Tickets_En FOREIGN KEY (ticket_id) REFERENCES Ventas.TicketsDeVenta(id)
+        CONSTRAINT FK_Participacion_Tour FOREIGN KEY (tour_id) REFERENCES Ventas.Tours(id),
+        CONSTRAINT FK_Participacion_Tickets FOREIGN KEY (ticket_id) REFERENCES Ventas.TicketsDeVenta(id)
     );
 END
 GO
@@ -386,10 +354,10 @@ BEGIN
         ticket_id INT NOT NULL,
         tipo_fecha_id INT NOT NULL,
         tipo_visitante_id INT NOT NULL,
-        f_visita SMALLDATETIME NOT NULL /*DEFAULT GETDATE()*/,
+        f_visita SMALLDATETIME NOT NULL
+            CONSTRAINT DF_Entradas_Fecha_Visita DEFAULT GETDATE(),
         precio DECIMAL(10, 2) NOT NULL,
-        CONSTRAINT DF_Fecha_Visita DEFAULT GETDATE() FOR f_visita,
-        CONSTRAINT CK_Precio CHECK (precio >= 0),
+        CONSTRAINT CK_Entradas_Precio CHECK (precio >= 0),
 	    CONSTRAINT FK_Entradas_Tarifas FOREIGN KEY (tarifa_id) REFERENCES Administracion.TarifasDeArticulo(id),
         CONSTRAINT FK_Entradas_Tickets FOREIGN KEY (ticket_id) REFERENCES Ventas.TicketsDeVenta(id),
         CONSTRAINT FK_Entradas_Fechas FOREIGN KEY (tipo_fecha_id) REFERENCES Administracion.TiposDeFecha(id),

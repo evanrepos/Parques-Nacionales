@@ -574,37 +574,47 @@ BEGIN
 END
 GO
 --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+-- =============================================
+-- CARGA
+-- =============================================
+
+CREATE OR ALTER PROCEDURE Comercial.GenerarDatos
+AS
+BEGIN
+    BEGIN TRY
+        BEGIN TRANSACTION;
+            EXEC Comercial.GenerarActividadesDeConcesion
+        
+            EXEC Comercial.GenerarEmpresas
+        
+            EXEC Comercial.GenerarConcesiones
+        
+            EXEC Comercial.GenerarPagosDeCuota
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+
+        DECLARE @Mensaje NVARCHAR(MAX);
+
+        SET @Mensaje = CONCAT(
+            'Error N° ', ERROR_NUMBER(),
+            '. Línea: ', ERROR_LINE(),
+            '. Procedimiento: ', ISNULL(ERROR_PROCEDURE(), 'N/A'),
+            '. Descripción: ', ERROR_MESSAGE()
+        );
+
+        THROW 50000, @Mensaje, 1;
+
+    END CATCH;
+END
+GO
+
+--EXEC Comercial.GenerarDatos
 
 /*
-BEGIN TRY
-    BEGIN TRANSACTION;
-        EXEC Comercial.GenerarActividadesDeConcesion
-        
-        EXEC Comercial.GenerarEmpresas
-        
-        EXEC Comercial.GenerarConcesiones
-        
-        EXEC Comercial.GenerarPagosDeCuota
-    COMMIT TRANSACTION;
-END TRY
-BEGIN CATCH
-
-    IF @@TRANCOUNT > 0
-        ROLLBACK TRANSACTION;
-
-    DECLARE @Mensaje NVARCHAR(MAX);
-
-    SET @Mensaje = CONCAT(
-        'Error N° ', ERROR_NUMBER(),
-        '. Línea: ', ERROR_LINE(),
-        '. Procedimiento: ', ISNULL(ERROR_PROCEDURE(), 'N/A'),
-        '. Descripción: ', ERROR_MESSAGE()
-    );
-
-    THROW 50000, @Mensaje, 1;
-
-END CATCH;
-
 SELECT * FROM Comercial.ActividadesDeConcesiones
 SELECT * FROM Comercial.Empresas
 SELECT * FROM Comercial.Concesiones

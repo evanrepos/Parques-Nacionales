@@ -1,3 +1,19 @@
+/* #####################################
+   # Universidad Nacional de la Matanza#
+   #      Bases de Datos Aplicada      #
+   #####################################
+
+   Participan: 
+     - Iván Gonzalez Fernandez
+
+   #####################################
+   #       OperacionesAdministracion.sql      #
+   #####################################
+   El objetivo de este script es definir todos los 
+   store procedures relacionados con las
+   operaciones administrativas...
+*/
+
 USE ParquesNacionales
 GO
 
@@ -36,64 +52,6 @@ BEGIN
         RAISERROR('Error al insertar FORMA DE PAGO: %s', 16, 1, @error)
     END CATCH
 END;
-GO
-
-CREATE OR ALTER PROCEDURE Administracion.ActualizarCotizacionDivisa
-    @divisa_id VARCHAR(6) = NULL
-AS
-BEGIN
-    DECLARE @cotizacion DECIMAL(18, 2);
-    DECLARE @f_actualizacion SMALLDATETIME = (SELECT f_actualizacion FROM Administracion.Divisas WHERE id = @divisa_id);
-    DECLARE @codigo_iso NVARCHAR(6) = (SELECT codigo_iso FROM Administracion.Divisas WHERE id = @divisa_id);
-    DECLARE @mensajeDeError NVARCHAR(500) = CONCAT_WS(CHAR(10),
-        IIF(@codigo_iso = 'ARS', 'No puede calcularse el valor de la moneda argentina.', NULL),
-        IIF(@divisa_id IS NULL, 'Ni el código ISO ni la descripción pueden ser nulos, debe aportar una referencia.', NULL),
-        IIF(NOT EXISTS (SELECT id FROM Administracion.Divisas WHERE id = @divisa_id), 
-            'La divisa ingresada no existe en la tabla de divisas de la administración.', NULL),
-        IIF(DATEDIFF(HOUR, @f_actualizacion, GETDATE()) < 24, --Se impone como regla que la actualización debe ocurrir 24 horas después. 
-            'La divisa ya fue consultada anteriormente, espere 24 horas después de la última actualización.', NULL)
-        );
-
-    IF LEN(@mensajeDeError) > 0
-    BEGIN
-        ;THROW 50000, @mensajeDeError, 1;
-    END;
-
-    CREATE TABLE #cotizacion (
-        ars NVARCHAR(30),
-        iso NVARCHAR(30)
-    )
-
-    DECLARE @link NVARCHAR(200) = (SELECT LTRIM(CONCAT('https://api.currencyfreaks.com/latest?apikey=63af7539cf5947cba710cd39b1be8797&symbols=ARS,', @codigo_iso), ' '));
-    DECLARE @Object INT;
-    DECLARE @response VARCHAR(8000);
-
-    EXEC sp_OACreate 'MSXML2.ServerXMLHTTP.6.0', @Object OUT;
-
-    EXEC sp_OAMethod @Object, 'open', NULL, 'GET', @link, 'false';
-
-    EXEC sp_OAMethod @Object, 'send';
-
-    EXEC sp_OAGetProperty @Object, 'responseText', @response OUT;
-
-    --SELECT @cotizacion = ARS / EUR, @f_actualizacion = GETDATE() FROM OPENJSON(@response)
-    DECLARE @sql NVARCHAR(MAX);
-    
-    SET @sql = N'
-    INSERT INTO #cotizacion
-        SELECT JSON_VALUE(@response, ''$.rates.ARS''), JSON_VALUE(@response, ''$.rates.'+ @codigo_iso +''')';
-
-    EXEC sp_executesql
-        @sql,
-        N'@response NVARCHAR(MAX)',
-        @response = @response;
-
-    SELECT @cotizacion = CAST(ars AS DECIMAL(18, 2)) / CAST(iso AS DECIMAL(22, 6)), @f_actualizacion = GETDATE() FROM #cotizacion
-
-    EXEC sp_OADestroy @Object;
-
-    UPDATE Administracion.Divisas SET cotizacion = @cotizacion, f_actualizacion = @f_actualizacion WHERE id = @divisa_id;
-END
 GO
 
 CREATE OR ALTER PROCEDURE Administracion.IngresarDivisas 
@@ -536,7 +494,7 @@ BEGIN
 END;
 GO
 
-/*------------------------------------------------------------------------------------------------------------*/
+----------------------------------------------------------------------------------------------------------------------------------------------------------------
 --ACTUALIZAR DATOS
 CREATE OR ALTER PROCEDURE Administracion.ActualizarFormasDePago
     @id INT = NULL,
@@ -610,6 +568,64 @@ BEGIN
         DECLARE @error VARCHAR(500) = ERROR_MESSAGE()
 	RAISERROR('Error al actualizar Divisas: %s', 16, 1, @error)
     END CATCH
+END
+GO
+
+CREATE OR ALTER PROCEDURE Administracion.ActualizarCotizacionDivisa
+    @divisa_id VARCHAR(6) = NULL
+AS
+BEGIN
+    DECLARE @cotizacion DECIMAL(18, 2);
+    DECLARE @f_actualizacion SMALLDATETIME = (SELECT f_actualizacion FROM Administracion.Divisas WHERE id = @divisa_id);
+    DECLARE @codigo_iso NVARCHAR(6) = (SELECT codigo_iso FROM Administracion.Divisas WHERE id = @divisa_id);
+    DECLARE @mensajeDeError NVARCHAR(500) = CONCAT_WS(CHAR(10),
+        IIF(@codigo_iso = 'ARS', 'No puede calcularse el valor de la moneda argentina.', NULL),
+        IIF(@divisa_id IS NULL, 'Ni el código ISO ni la descripción pueden ser nulos, debe aportar una referencia.', NULL),
+        IIF(NOT EXISTS (SELECT id FROM Administracion.Divisas WHERE id = @divisa_id), 
+            'La divisa ingresada no existe en la tabla de divisas de la administración.', NULL),
+        IIF(DATEDIFF(HOUR, @f_actualizacion, GETDATE()) < 24, --Se impone como regla que la actualización debe ocurrir 24 horas después. 
+            'La divisa ya fue consultada anteriormente, espere 24 horas después de la última actualización.', NULL)
+        );
+
+    IF LEN(@mensajeDeError) > 0
+    BEGIN
+        ;THROW 50000, @mensajeDeError, 1;
+    END;
+
+    CREATE TABLE #cotizacion (
+        ars NVARCHAR(30),
+        iso NVARCHAR(30)
+    )
+
+    DECLARE @link NVARCHAR(200) = (SELECT LTRIM(CONCAT('https://api.currencyfreaks.com/latest?apikey=63af7539cf5947cba710cd39b1be8797&symbols=ARS,', @codigo_iso), ' '));
+    DECLARE @Object INT;
+    DECLARE @response VARCHAR(8000);
+
+    EXEC sp_OACreate 'MSXML2.ServerXMLHTTP.6.0', @Object OUT;
+
+    EXEC sp_OAMethod @Object, 'open', NULL, 'GET', @link, 'false';
+
+    EXEC sp_OAMethod @Object, 'send';
+
+    EXEC sp_OAGetProperty @Object, 'responseText', @response OUT;
+
+    --SELECT @cotizacion = ARS / EUR, @f_actualizacion = GETDATE() FROM OPENJSON(@response)
+    DECLARE @sql NVARCHAR(MAX);
+    
+    SET @sql = N'
+    INSERT INTO #cotizacion
+        SELECT JSON_VALUE(@response, ''$.rates.ARS''), JSON_VALUE(@response, ''$.rates.'+ @codigo_iso +''')';
+
+    EXEC sp_executesql
+        @sql,
+        N'@response NVARCHAR(MAX)',
+        @response = @response;
+
+    SELECT @cotizacion = CAST(ars AS DECIMAL(18, 2)) / CAST(iso AS DECIMAL(22, 6)), @f_actualizacion = GETDATE() FROM #cotizacion
+
+    EXEC sp_OADestroy @Object;
+
+    UPDATE Administracion.Divisas SET cotizacion = @cotizacion, f_actualizacion = @f_actualizacion WHERE id = @divisa_id;
 END
 GO
 
@@ -985,7 +1001,7 @@ BEGIN
 END;
 GO
 
-/*------------------------------------------------------------------------------------------------------------*/
+----------------------------------------------------------------------------------------------------------------------------------------------------------------
 --ELIMINAR DATOS
 CREATE OR ALTER PROCEDURE Administracion.EliminarFormasDePago
     @id INT = NULL,

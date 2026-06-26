@@ -1,3 +1,19 @@
+/* #####################################
+   # Universidad Nacional de la Matanza#
+   #      Bases de Datos Aplicada      #
+   #####################################
+
+   Participan: 
+     - Iván Gonzalez Fernandez
+
+   #####################################
+   #       OperacionesConcesion.sql      #
+   #####################################
+   El objetivo de este script es definir todos los 
+   store procedures relacionados con las
+   operaciones de las concesiones...
+*/
+
 USE ParquesNacionales;
 GO
 

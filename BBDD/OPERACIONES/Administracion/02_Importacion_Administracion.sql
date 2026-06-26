@@ -334,6 +334,7 @@ GO
 -- =============================================
 -- Parques (IMPORTABLE)
 -- =============================================
+
 CREATE OR ALTER PROCEDURE Administracion.GenerarParques
 AS
 BEGIN
@@ -621,10 +622,6 @@ BEGIN
             ('Circuito de lagunas', 180, 4, 14500),
             ('Trekking de montaña', 240, 5, 19000);
 
-            ---------------------------------------------------
-            -- 5 TOURS POR PARQUE
-            ---------------------------------------------------
-
             DECLARE @Parque INT = 1;
             DECLARE @cant_parques INT = (SELECT COUNT(1) FROM Administracion.Parques);
             WHILE @Parque <= @cant_parques
@@ -763,51 +760,61 @@ BEGIN
 END
 GO
 --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+-- =============================================
+-- CARGA
+-- =============================================
+
+CREATE OR ALTER PROCEDURE Administracion.GenerarDatos
+AS
+BEGIN
+    BEGIN TRY
+        BEGIN TRANSACTION;
+            EXEC Administracion.GenerarFormasDePago
+        
+            EXEC Administracion.GenerarDivisas
+        
+            EXEC Administracion.GenerarTiposDeFecha
+        
+            EXEC Administracion.GenerarTiposDeVisitante
+        
+            EXEC Administracion.GenerarTiposDeParque
+        
+            EXEC Administracion.GenerarProvincias
+        
+            EXEC Administracion.GenerarParques
+        
+            EXEC Administracion.GenerarPuntosDeVenta
+        
+            EXEC Administracion.GenerarTarifasDeEntradas
+            EXEC Administracion.GenerarTarifasDeActividades
+            EXEC Administracion.GenerarTarifasDeTours
+        
+            EXEC Administracion.GenerarAjustes    
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+
+        DECLARE @Mensaje NVARCHAR(MAX);
+
+        SET @Mensaje = CONCAT(
+            'Error N° ', ERROR_NUMBER(),
+            '. Línea: ', ERROR_LINE(),
+            '. Procedimiento: ', ISNULL(ERROR_PROCEDURE(), 'N/A'),
+            '. Descripción: ', ERROR_MESSAGE()
+        );
+
+        THROW 50000, @Mensaje, 1;
+
+    END CATCH;
+END
+GO
+
+--EXEC Administracion.GenerarDatos
 
 /*
-BEGIN TRY
-    BEGIN TRANSACTION;
-        EXEC Administracion.GenerarFormasDePago
-        
-        EXEC Administracion.GenerarDivisas
-        
-        EXEC Administracion.GenerarTiposDeFecha
-        
-        EXEC Administracion.GenerarTiposDeVisitante
-        
-        EXEC Administracion.GenerarTiposDeParque
-        
-        EXEC Administracion.GenerarProvincias
-        
-        EXEC Administracion.GenerarParques
-        
-        EXEC Administracion.GenerarPuntosDeVenta
-        
-        EXEC Administracion.GenerarTarifasDeEntradas
-        EXEC Administracion.GenerarTarifasDeActividades
-        EXEC Administracion.GenerarTarifasDeTours
-        
-        EXEC Administracion.GenerarAjustes    
-    COMMIT TRANSACTION;
-END TRY
-BEGIN CATCH
-
-    IF @@TRANCOUNT > 0
-        ROLLBACK TRANSACTION;
-
-    DECLARE @Mensaje NVARCHAR(MAX);
-
-    SET @Mensaje = CONCAT(
-        'Error N° ', ERROR_NUMBER(),
-        '. Línea: ', ERROR_LINE(),
-        '. Procedimiento: ', ISNULL(ERROR_PROCEDURE(), 'N/A'),
-        '. Descripción: ', ERROR_MESSAGE()
-    );
-
-    THROW 50000, @Mensaje, 1;
-
-END CATCH;
-
 SELECT * FROM Administracion.FormasDePago
 SELECT * FROM Administracion.Divisas
 SELECT * FROM Administracion.TiposDeFecha

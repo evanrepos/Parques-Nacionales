@@ -20,8 +20,7 @@ BEGIN
         descripcion VARCHAR(100) NOT NULL,
         cotizacion DECIMAL(19, 6) NOT NULL
             CONSTRAINT DF_Divisas_Cotizacion DEFAULT 0,
-        f_actualizacion SMALLDATETIME NOT NULL
-            CONSTRAINT DF_Divisas_Fecha_Actualizacion DEFAULT GETDATE(),
+        f_actualizacion SMALLDATETIME NULL
     );
 END
 GO
@@ -340,6 +339,8 @@ BEGIN
     CREATE TABLE Ventas.ParticipaEnTour (
         tour_id INT NOT NULL, --OJO! Esta tabla puede tomar actividades que no sean tours.
         ticket_id INT NOT NULL,
+        cantidad SMALLINT NOT NULL,
+        CONSTRAINT CK_Participacion_Cantidad CHECK (cantidad > 0),
         CONSTRAINT FK_Participacion_Tour FOREIGN KEY (tour_id) REFERENCES Ventas.Tours(id),
         CONSTRAINT FK_Participacion_Tickets FOREIGN KEY (ticket_id) REFERENCES Ventas.TicketsDeVenta(id)
     );
@@ -357,7 +358,7 @@ BEGIN
         f_visita SMALLDATETIME NOT NULL
             CONSTRAINT DF_Entradas_Fecha_Visita DEFAULT GETDATE(),
         precio DECIMAL(10, 2) NOT NULL,
-        CONSTRAINT CK_Entradas_Precio CHECK (precio >= 0),
+        CONSTRAINT CK_Entradas_Precio CHECK (precio > 0),
 	    CONSTRAINT FK_Entradas_Tarifas FOREIGN KEY (tarifa_id) REFERENCES Administracion.TarifasDeArticulo(id),
         CONSTRAINT FK_Entradas_Tickets FOREIGN KEY (ticket_id) REFERENCES Ventas.TicketsDeVenta(id),
         CONSTRAINT FK_Entradas_Fechas FOREIGN KEY (tipo_fecha_id) REFERENCES Administracion.TiposDeFecha(id),

@@ -353,19 +353,14 @@ BEGIN
     --LUEGO NECESITA EL METODO DE PAGO Y LA FECHA DE ABONO.
 
     --SE BUSCA LA CUOTA CON LOS PARAMETROS DADOS.
-    DECLARE @cuota_id INT = NULL;
-    IF @id_cuota IS NOT NULL
+    IF @id_cuota IS NULL
     BEGIN
-        SELECT @cuota_id = id FROM Comercial.CuotasCanon WHERE id = @id_cuota AND f_pago IS NULL;
-    END
-    ELSE
-    BEGIN
-        SELECT @cuota_id = id FROM Comercial.CuotasCanon WHERE f_vencimiento = @fecha_vencimiento AND concesion_id = @id_concesion AND f_pago IS NULL;
+        SELECT @id_cuota = id FROM Comercial.CuotasCanon WHERE f_vencimiento = @fecha_vencimiento AND concesion_id = @id_concesion AND f_pago IS NULL;
     END
 
     --LUEGO SE BUSCA LA VALIDEZ DE LOS PARAMETROS.
     DECLARE @mensajeDeError VARCHAR(500) = CONCAT_WS(CHAR(10),
-        IIF(@cuota_id IS NULL, 'La cuota no existe, o ya fue abonada.', NULL),
+        IIF(@id_cuota IS NULL, 'La cuota no existe, o ya fue abonada.', NULL),
         IIF(@id_cuota IS NULL AND NOT EXISTS (SELECT 1 FROM Comercial.Concesiones WHERE id = @id_concesion), 'La concesion no existe', NULL),
         IIF(NOT EXISTS (SELECT 1 FROM Administracion.FormasDePago WHERE id = @id_metodo_pago), 'El método de pago no existe', NULL),
         IIF(@id_metodo_pago IS NULL, 'Se debe indicar un metodo de pago.', NULL),
@@ -385,7 +380,7 @@ BEGIN
     --EN CASO DE ESTAR TODO BIEN, SE CONFIRMA EL PAGO.
     UPDATE Comercial.CuotasCanon 
     SET forma_pago_id = @id_metodo_pago, f_pago = @fecha_pago
-    WHERE id = @cuota_id;
+    WHERE id = @id_cuota;
     
 END
 GO

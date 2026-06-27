@@ -279,14 +279,14 @@ BEGIN
     
                 -- Seleccionar parque aleatorio.
                 DECLARE @id_parque INT;
+                SELECT TOP 1 @id_parque = id FROM Administracion.Parques ORDER BY NEWID()
 
                 -- Seleccionar actividad aleatoria.
                 DECLARE @id_actividad_tipo INT = (SELECT TOP 1 id FROM Comercial.ActividadesDeConcesiones ORDER BY NEWID());
 
                 -- Generar fecha_firma.
                 DECLARE @año_creacion CHAR(4);
-
-                SELECT TOP 1 @id_parque = id, @año_creacion = CAST(año_creacion AS CHAR(4)) FROM Administracion.Parques ORDER BY NEWID()
+                SELECT @año_creacion = CAST(YEAR(comienzo_actividad) AS CHAR(4)) FROM Comercial.Empresas WHERE id = @indice_empresa
 
                 DECLARE @fecha_base DATE =
                     CAST(CONCAT(@año_creacion, '0101') AS DATE);
@@ -461,9 +461,9 @@ BEGIN
                 ELSE
                     SET @perfil = 4; -- Moroso
 
-                --GUARDAR LAS CONCESIONES DE LA EMPRESA EN LA TABLA TEMPORAL
+                --GUARDAR LAS CONCESIONES EN LA TABLA TEMPORAL
                 INSERT INTO #concesiones
-                    SELECT id, empresa_id FROM Comercial.Concesiones
+                    SELECT id, empresa_id FROM Comercial.Concesiones WHERE empresa_id = @indice_empresa;
 
                 --POR CADA CONCESION GUARDADA
                 DECLARE @indice_concesion INT = 1;
@@ -473,7 +473,7 @@ BEGIN
                     --Tomar el id verdadero de la concesion.
                     DECLARE @id_concesion INT = (SELECT concesion_id FROM #concesiones WHERE id = @indice_concesion);
                     -- Contar las cuotas de esa concesion
-                    DECLARE @cant_cuotas INT = (SELECT COUNT(1) FROM Comercial.CuotasCanon WHERE concesion_id = @id_concesion); 
+                    DECLARE @cant_cuotas INT = (SELECT COUNT(1) FROM Comercial.CuotasCanon WHERE concesion_id = @id_concesion AND f_vencimiento < GETDATE() ); 
         
                     --Aquí guarda las cuotas que la empresa pagará por la concesion. Las cuotas tienen que ser previas a la fecha de hoy.
                     IF @perfil = 1
@@ -595,7 +595,17 @@ BEGIN
     BEGIN CATCH
 
         IF @@TRANCOUNT > 0
+        BEGIN
+            DELETE FROM Comercial.ActividadesDeConcesiones
+            DBCC CHECKIDENT ('Comercial.ActividadesDeConcesiones', 'RESEED', 0)
+            DELETE FROM Comercial.Empresas
+            DBCC CHECKIDENT ('Comercial.Empresas', 'RESEED', 0)
+            DELETE FROM Comercial.Concesiones
+            DBCC CHECKIDENT ('Comercial.Concesiones', 'RESEED', 0)
+            DELETE FROM Comercial.CuotasCanon
+            DBCC CHECKIDENT ('Comercial.CuotasCanon', 'RESEED', 0)
             ROLLBACK TRANSACTION;
+        END
 
         DECLARE @Mensaje NVARCHAR(MAX);
 
@@ -612,11 +622,4 @@ BEGIN
 END
 GO
 
---EXEC Comercial.GenerarDatos
-
-/*
-SELECT * FROM Comercial.ActividadesDeConcesiones
-SELECT * FROM Comercial.Empresas
-SELECT * FROM Comercial.Concesiones
-SELECT * FROM Comercial.CuotasCanon
-*/
+EXEC Comercial.GenerarDatos

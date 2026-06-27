@@ -68,7 +68,6 @@ BEGIN
             )
             INSERT INTO @divisas
                 SELECT [key], [value] FROM OPENJSON(@response)
-
             
             DECLARE @indice_divisa INT;
             DECLARE @cant_divisas INT;
@@ -219,7 +218,7 @@ BEGIN
             SELECT *
             FROM OPENROWSET(
                 'Microsoft.ACE.OLEDB.16.0',
-                'Excel 12.0;HDR=YES;IMEX=1;Database=E:\ParquesNacionales\AreasProtegidas\AreasProtegidas.xlsx',
+                'Excel 12.0;HDR=YES;IMEX=1;Database=E:\evanrepos\Parques-Nacionales\Importacion\AreasProtegidas\AreasProtegidas.xlsx',
                 'SELECT * FROM [Areas_Protegidas$]'
             );
 
@@ -288,7 +287,7 @@ BEGIN
                 SELECT *
                 FROM OPENROWSET(
                     'Microsoft.ACE.OLEDB.16.0',
-                    'Excel 12.0;HDR=YES;IMEX=1;Database=E:\ParquesNacionales\AreasProtegidas\AreasProtegidas.xlsx',
+                    'Excel 12.0;HDR=YES;IMEX=1;Database=E:\evanrepos\Parques-Nacionales\Importacion\AreasProtegidas\AreasProtegidas.xlsx',
                     'SELECT * FROM [Areas_Protegidas$]'
                 );
 
@@ -356,7 +355,7 @@ BEGIN
                 SELECT *
                 FROM OPENROWSET(
                     'Microsoft.ACE.OLEDB.16.0',
-                    'Excel 12.0;HDR=YES;IMEX=1;Database=E:\ParquesNacionales\AreasProtegidas\AreasProtegidas.xlsx',
+                    'Excel 12.0;HDR=YES;IMEX=1;Database=E:\evanrepos\Parques-Nacionales\Importacion\AreasProtegidas\AreasProtegidas.xlsx',
                     'SELECT * FROM [Areas_Protegidas$]'
                 );
 
@@ -611,16 +610,16 @@ BEGIN
             );
 
             INSERT INTO @Tours VALUES
-            ('Tour de trekking', 180, 5, 15000),
-            ('Tour de navegacion', 120, 10, 12000),
-            ('Safari fotografico', 240, 8, 18000),
-            ('Tour de biodiversidad', 150, 6, 14000),
-            ('Circuito historico', 90, 7, 9000),
-            ('Tour arqueologico', 180, 7, 16000),
-            ('Expedicion naturalista', 300, 6, 25000),
-            ('Tour de observacion nocturna', 120, 9, 13000),
-            ('Circuito de lagunas', 180, 4, 14500),
-            ('Trekking de montaña', 240, 5, 19000);
+            ('Tour de trekking', 180, 15, 15000),
+            ('Tour de navegacion', 120, 20, 12000),
+            ('Safari fotografico', 240, 12, 18000),
+            ('Tour de biodiversidad', 150, 20, 14000),
+            ('Circuito historico', 90, 25, 9000),
+            ('Tour arqueologico', 180, 20, 16000),
+            ('Expedicion naturalista', 300, 10, 25000),
+            ('Tour de observacion nocturna', 120, 15, 13000),
+            ('Circuito de lagunas', 180, 20, 14500),
+            ('Trekking de montaña', 240, 15, 19000);
 
             DECLARE @Parque INT = 1;
             DECLARE @cant_parques INT = (SELECT COUNT(1) FROM Administracion.Parques);
@@ -638,7 +637,7 @@ BEGIN
                     SELECT TOP 1
                         @Tour = CONCAT(descripcion, ' - Variante ', @Tarifa),
                         @Duracion = duracion,
-                        @Cupo = cupo + (ABS(CHECKSUM(NEWID())) % 6),
+                        @Cupo = cupo + (ABS(CHECKSUM(NEWID())) % 15),
                         @PrecioTour = precio_base + (ABS(CHECKSUM(NEWID())) % 5000)
                     FROM @Tours
                     ORDER BY NEWID();
@@ -812,17 +811,4 @@ BEGIN
 END
 GO
 
---EXEC Administracion.GenerarDatos
-
-/*
-SELECT * FROM Administracion.FormasDePago
-SELECT * FROM Administracion.Divisas
-SELECT * FROM Administracion.TiposDeFecha
-SELECT * FROM Administracion.TiposDeVisitante
-SELECT * FROM Administracion.TiposDeParque
-SELECT * FROM Administracion.Provincias
-SELECT * FROM Administracion.Parques
-SELECT * FROM Administracion.PuntosDeVenta
-SELECT * FROM Administracion.TarifasDeArticulo
-SELECT * FROM Administracion.Ajustes
-*/
+EXEC Administracion.GenerarDatos

@@ -20,7 +20,7 @@ GO
 CREATE OR ALTER PROCEDURE Ventas.InsertarActividad
     @tarifa_id INT NULL,
     @ticket_id INT NULL,
-    @f_visita DATE NULL,
+    @f_visita SMALLDATETIME NULL,
     @precio DECIMAL(10, 2) NULL,
     @id INT = NULL OUTPUT
 AS
@@ -105,8 +105,9 @@ GO
 
 -- Tabla puente: vincula tickets adicionales (acompañantes) a una misma actividad.
 CREATE OR ALTER PROCEDURE Ventas.InsertarParticipaEnTour
-    @tour_id INT,
-    @ticket_id INT
+    @tour_id INT = NULL,
+    @ticket_id INT = NULL,
+    @cantidad SMALLINT = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -117,6 +118,7 @@ BEGIN
         IIF(NOT EXISTS (SELECT 1 FROM Ventas.Tours WHERE id = @tour_id), 'La actividad no existe', NULL),
         IIF(@ticket_id IS NULL, '@ticket_id no puede ser nulo', NULL),
         IIF(NOT EXISTS (SELECT 1 FROM Ventas.TicketsDeVenta WHERE id = @ticket_id), 'El ticket no existe', NULL),
+        IIF(@cantidad IS NULL OR @cantidad <= 0, 'La cantidad de participantes debe ser mayor que cero.', NULL),
         IIF(EXISTS (SELECT 1 FROM Ventas.ParticipaEnTour WHERE tour_id = @tour_id AND ticket_id = @ticket_id),
             'Ese ticket ya participa en la actividad indicada', NULL)
     );
@@ -128,9 +130,9 @@ BEGIN
 
     BEGIN TRY
         INSERT INTO Ventas.ParticipaEnTour (
-            tour_id , ticket_id 
+            tour_id , ticket_id , cantidad
         ) VALUES (
-            @tour_id , @ticket_id 
+            @tour_id , @ticket_id , @cantidad
         );
     END TRY
     BEGIN CATCH
@@ -145,7 +147,7 @@ CREATE OR ALTER PROCEDURE Ventas.InsertarEntrada
     @ticket_id INT,
     @tipo_fecha_id INT,
     @tipo_visitante_id INT,
-    @f_visita DATE = NULL, 
+    @f_visita SMALLDATETIME = NULL, 
     @precio DECIMAL(10, 2) = NULL,
     @id INT = NULL OUTPUT
 AS
@@ -308,7 +310,8 @@ BEGIN
 
     -- FECHA DE VISITA
     DECLARE @f_generacion SMALLDATETIME;
-    SELECT @f_generacion = f_generacion FROM Ventas.TicketsDeVenta;
+    SELECT @f_generacion = f_generacion FROM Ventas.TicketsDeVenta WHERE id = @ticket_id;
+    --SELECT @f_generacion
 
     -- Validación del ajuste: debe existir y su tipo_articulo debe coincidir con el de la tarifa
     -- ID PARQUE
@@ -370,18 +373,42 @@ BEGIN
         ELSE IF @tipo_articulo_tarifa = 'T'
         BEGIN
             DECLARE @tour_id INT;
-            DECLARE @cant_cupos INT;
 
-            SELECT TOP 1 @cant_cupos = cant_cupos, @tour_id = id FROM Ventas.Tours WHERE tarifa_id = @tarifa_id AND @f_generacion < f_visita;
-            IF (@cant_cupos - @cantidad) >= 0 AND NOT EXISTS (SELECT 1 FROM Ventas.ParticipaEnTour WHERE ticket_id = @ticket_id)
+            -- Buscar el próximo tour disponible con cupos suficientes
+            SELECT TOP 1
+                @tour_id = id
+            FROM Ventas.Tours
+            WHERE tarifa_id = @tarifa_id
+              AND f_visita > @f_generacion
+              AND cant_cupos >= @cantidad
+            ORDER BY f_visita;
+
+            IF @tour_id IS NOT NULL
+               AND NOT EXISTS (
+                    SELECT 1
+                    FROM Ventas.ParticipaEnTour
+                    WHERE ticket_id = @ticket_id
+               )
             BEGIN
-                UPDATE Ventas.Tours SET cant_cupos -= @cantidad WHERE id = @tour_id
+                -- Descontar los cupos reservados
+                UPDATE Ventas.Tours
+                SET cant_cupos = cant_cupos - @cantidad
+                WHERE id = @tour_id;
 
-                EXEC Ventas.InsertarParticipaEnTour @tour_id, @ticket_id
+                /*
+                 Aquí hay una decisión de diseño importante.
+                */
+
+                -- Opción 1 (la más simple):
+                -- Un registro representa una reserva grupal.
+                EXEC Ventas.InsertarParticipaEnTour
+                    @tour_id,
+                    @ticket_id,
+                    @cantidad;
+
                 SET @todo_ok = 1;
             END
         END
-
         IF @todo_ok = 1
         BEGIN
             -- nro_detalle: 1 si es el primer detalle del ticket, o el siguiente correlativo

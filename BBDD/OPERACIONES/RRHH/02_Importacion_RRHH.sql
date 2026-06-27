@@ -18,7 +18,7 @@ BEGIN
 
             SELECT @json = BulkColumn
             FROM OPENROWSET(
-                BULK 'E:\ParquesNacionales\Otros\data.json',
+                BULK 'E:\evanrepos\Parques-Nacionales\Importacion\Otros\data.json',
                 SINGLE_CLOB
             ) AS j
 
@@ -112,7 +112,7 @@ BEGIN
 
             SELECT @json = BulkColumn
             FROM OPENROWSET(
-                BULK 'E:\ParquesNacionales\Otros\data.json',
+                BULK 'E:\evanrepos\Parques-Nacionales\Importacion\Otros\data.json',
                 SINGLE_CLOB
             ) AS j
 
@@ -440,8 +440,11 @@ BEGIN
                 DECLARE @f_egreso DATETIME = DATEADD(D, 0.8 * RAND(CHECKSUM(NEWID())) * @cant_dias, @f_ingreso);
                 DECLARE @motivo VARCHAR(200) = (SELECT TOP 1 descripcion FROM @motivos ORDER BY NEWID());
 
-                EXEC RRHH.FinalizarAsignacionGuardaparque @gpques_id, @f_egreso, @motivo
-                DELETE FROM @gpques_activos WHERE gpques_id = @gpques_id
+                IF EXISTS (SELECT * FROM RRHH.AsignacionesDeGuardaparques WHERE guardaparques_id = @gpques_id AND f_ingreso IS NOT NULL)
+                BEGIN
+                    EXEC RRHH.FinalizarAsignacionGuardaparque @gpques_id, @f_egreso, @motivo
+                    DELETE FROM @gpques_activos WHERE gpques_id = @gpques_id
+                END
                 SET @i = @i + 1
             END
         COMMIT TRANSACTION;
@@ -606,15 +609,4 @@ BEGIN
 END
 GO
 
---EXEC RRHH.GenerarDatos
-
-/*
-SELECT * FROM RRHH.Guias
-SELECT * FROM RRHH.Guardaparques
-SELECT * FROM RRHH.AsignacionesDeGuias
-SELECT * FROM RRHH.AsignacionesDeGuardaparques
-SELECT * FROM RRHH.AutorizacionesDeGuias
-
-SELECT ag.id, ag.articulo_id, ata.tipo_articulo, ag.guia_id, ag.f_inicio, ag.f_fin FROM RRHH.AutorizacionesDeGuias ag INNER JOIN
-    Administracion.TarifasDeArticulo ata ON ag.articulo_id = ata.id
-*/
+EXEC RRHH.GenerarDatos

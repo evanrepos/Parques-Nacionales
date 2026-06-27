@@ -609,7 +609,6 @@ BEGIN
 
     EXEC sp_OAGetProperty @Object, 'responseText', @response OUT;
 
-    --SELECT @cotizacion = ARS / EUR, @f_actualizacion = GETDATE() FROM OPENJSON(@response)
     DECLARE @sql NVARCHAR(MAX);
     
     SET @sql = N'

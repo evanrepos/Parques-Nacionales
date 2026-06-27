@@ -20,8 +20,8 @@ BEGIN
             DECLARE @es_extranjero BIT;
             DECLARE @cotizacion DECIMAL(18, 2);
             DECLARE @f_actualizacion DATETIME;
-            DECLARE @f_inicio DATETIME = CONCAT(CAST(CAST(@fecha_inicio AS DATE) AS VARCHAR) , 'T00:00:00');
-            DECLARE @f_fin DATETIME = DATEADD(HOUR, 10, @f_inicio);
+            DECLARE @f_inicio DATETIME = CONCAT(CAST(CAST(@fecha_inicio AS DATE) AS VARCHAR) , 'T07:00:00');
+            DECLARE @f_fin DATETIME = DATEADD(HOUR, 12, @f_inicio);
             
             SELECT TOP 1 @punto_venta_id = id, @parque_id = parque_id FROM Administracion.PuntosDeVenta ORDER BY NEWID();
             WHILE @f_inicio <= @f_fin
@@ -123,7 +123,8 @@ BEGIN
                 DECLARE @indice_detalle INT = 1;
                 DECLARE @cant_detalles INT = (1 + ABS(CHECKSUM(NEWID())) % 5);
                 INSERT INTO #detalles_ticket
-                    SELECT TOP (@cant_detalles) id, parque_id, tipo_articulo, duracion, cupo, precio FROM Administracion.TarifasDeArticulo WHERE parque_id = @parque_id
+                    SELECT TOP (@cant_detalles) id, parque_id, tipo_articulo, duracion, cupo, precio FROM Administracion.TarifasDeArticulo WHERE parque_id = @parque_id 
+                    ORDER BY NEWID()
 
                 WHILE @indice_detalle <= @cant_detalles
                 BEGIN
@@ -157,7 +158,13 @@ BEGIN
                     END
   
                     --CANTIDAD DE UNIDADES
-                    DECLARE @cantidad INT = 1 + CAST(0.5 + RAND(CHECKSUM(NEWID())) AS INT) * ABS(CHECKSUM(NEWID())) % 10;
+                    DECLARE @cantidad INT;
+                    SET @cantidad =
+                    CASE
+                        WHEN RAND(CHECKSUM(NEWID())) < 0.7 THEN 1
+                        WHEN RAND(CHECKSUM(NEWID())) < 0.9 THEN 2
+                        ELSE 3
+                    END;
 
                     --GENERACION DETALLE DE TICKET
                     EXEC Ventas.InsertarDetallesDeTicket @ticket_id, @tarifa_id, @tipo_visitante, @cantidad
@@ -344,16 +351,4 @@ BEGIN
 END
 GO
 
---EXEC Ventas.GenerarDatos
-
-/*
-SET NOCOUNT OFF
-SELECT * FROM Ventas.TicketsDeVenta
-SELECT * FROM Ventas.DetallesDeTicket
-SELECT * FROM Ventas.Entradas
-SELECT * FROM Ventas.Actividades
-SELECT * FROM Ventas.Tours
-SELECT * FROM Ventas.ParticipaEnTour
-ORDER BY tour_id
-SET NOCOUNT ON
-*/
+EXEC Ventas.GenerarDatos

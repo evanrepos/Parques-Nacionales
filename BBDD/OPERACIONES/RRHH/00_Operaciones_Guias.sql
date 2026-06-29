@@ -26,58 +26,78 @@ CREATE OR ALTER PROCEDURE RRHH.CrearGuia
 AS
 BEGIN
     SET NOCOUNT ON
-    
-    DECLARE @mensajeDeError VARCHAR(500) = CONCAT_WS(CHAR(10),
-        IIF(@cuil IS NULL, '@cuit no puede ser nulo', NULL),
-        IIF(@cuil not between 20000000001 and 339999999999, '@cuit invalido', NULL),
-        IIF(EXISTS (SELECT 1 FROM RRHH.Guias WHERE cuil = @cuil), 'El CUIL ya está asociado a un guía', NULL),
-        IIF(@nombre IS NULL, '@nombre no puede ser nulo', NULL),
-        IIF(@apellido IS NULL, '@apellido no puede ser nulo', NULL),
-        IIF(@fecha_nacimiento IS NULL, '@@fecha_nacimiento no puede ser nulo', NULL),
-        IIF(@fecha_nacimiento > DATEADD(year, -18, GETDATE()), 'El guía debe ser mayor de edad', NULL)
-    );
 
-    IF (LEN(@mensajeDeError) > 0) BEGIN
-        ;THROW 50000, @mensajeDeError, 1;
+    --Condiciones de falla
+    --1. Si el cuil es nulo o no respeta el rango válido
+    DECLARE @condicion1 BIT = CASE 
+        WHEN @cuil IS NULL OR @cuil NOT BETWEEN 20000000001 AND 339999999999
+        THEN 1 ELSE 0 END;
+
+    DECLARE @mensaje1 VARCHAR(100) = 'El cuil es nulo o inválido.';
+
+    --2. Si el cuil ingresado ya está asociado a un guía
+    DECLARE @condicion2 BIT = CASE 
+        WHEN EXISTS (SELECT 1 FROM RRHH.Guias WHERE cuil = @cuil)
+        THEN 1 ELSE 0 END;
+
+    DECLARE @mensaje2 VARCHAR(100) = 'El cuil ya está asociado a un guía.';
+
+    --3. Si el nombre es nulo
+    DECLARE @condicion3 BIT = CASE 
+        WHEN @nombre IS NULL
+        THEN 1 ELSE 0 END;
+
+    DECLARE @mensaje3 VARCHAR(100) = 'El nombre no puede ser nulo.';
+
+    --4. Si el apellido es nulo
+    DECLARE @condicion4 BIT = CASE 
+        WHEN @apellido IS NULL
+        THEN 1 ELSE 0 END;
+
+    DECLARE @mensaje4 VARCHAR(100) = 'El apellido no puede ser nulo.';
+
+    --5. Si la fecha de nacimiento es nula
+    DECLARE @condicion5 BIT = CASE 
+        WHEN @fecha_nacimiento IS NULL
+        THEN 1 ELSE 0 END;
+
+    DECLARE @mensaje5 VARCHAR(100) = 'La fecha de nacimiento no puede ser nula.';
+
+    --6. Si el guía no es mayor de edad
+    DECLARE @condicion6 BIT = CASE 
+        WHEN @fecha_nacimiento > DATEADD(year, -18, GETDATE())
+        THEN 1 ELSE 0 END;
+
+    DECLARE @mensaje6 VARCHAR(100) = 'El guía debe ser mayor de edad.';
+
+    --Generación del mensaje de error.
+    DECLARE @mensajeDeError VARCHAR(MAX) = CONCAT_WS(CHAR(10),
+        IIF(@condicion1 = 1, @mensaje1, NULL),
+        IIF(@condicion2 = 1, @mensaje2, NULL),
+        IIF(@condicion3 = 1, @mensaje3, NULL),
+        IIF(@condicion4 = 1, @mensaje4, NULL),
+        IIF(@condicion5 = 1, @mensaje5, NULL),
+        IIF(@condicion6 = 1, @mensaje6, NULL)
+        );
+
+    --Si falló, muestra mensaje de error, no hace cambios.
+    IF (LEN(@mensajeDeError) > 0)
+    BEGIN
+        RAISERROR(@mensajeDeError, 1, 1);
     END;
 
-    -- Un guía nace sin asignación, por lo tanto inactivo.
-    INSERT INTO RRHH.Guias
-    (cuil, nombre, apellido, esta_activo, f_nacimiento)
-    VALUES
-    (@cuil, @nombre, @apellido, 0, @fecha_nacimiento);
+    --Si todo salió bien, se crea el guía (nace sin asignación, por lo tanto inactivo).
+    ELSE
+    BEGIN
+        INSERT INTO RRHH.Guias
+        (cuil, nombre, apellido, esta_activo, f_nacimiento)
+        VALUES
+        (@cuil, @nombre, @apellido, 0, @fecha_nacimiento);
 
-    SET @id = SCOPE_IDENTITY();
+        SET @id = SCOPE_IDENTITY();
+    END
 END;
 GO
-
-/*CREATE OR ALTER PROCEDURE RRHH.ModificarGuia
-    @id INT,
-    @cuit BIGINT,
-    @nombre VARCHAR(30),
-    @apellido VARCHAR(50),
-    @fecha_nacimiento DATE
-AS
-BEGIN
-    UPDATE rrhh.guia
-    SET id = @id, 
-        cuit = @cuit, 
-        nombre = @nombre, 
-        apellido = @apellido, 
-        fecha_nacimiento = @fecha_nacimiento
-    WHERE id = @id;
-END;
-GO
-
-CREATE OR ALTER PROCEDURE dbo.EliminarGuia
-    @id INT
-AS
-BEGIN
-    -- Validar si existía, validar si falla por estar siendo usado
-    DELETE FROM rrhh.guia
-    WHERE id = @id;
-END;
-GO*/
 
 -- Asigna a un guía, permitiendo que trabaje en un parque.
 CREATE OR ALTER PROCEDURE RRHH.AsignarGuia
@@ -88,52 +108,87 @@ CREATE OR ALTER PROCEDURE RRHH.AsignarGuia
 AS
 BEGIN
     SET NOCOUNT ON
-    -- Reglas de negocio: No se puede asignar si el guía tiene una asignación activa.
-    DECLARE @mensajeDeError VARCHAR(500) = CONCAT_WS(CHAR(10),
-        IIF(NOT EXISTS (SELECT 1 FROM RRHH.Guias WHERE id = @id_guia), 'El guía no existe', NULL),
-        IIF(NOT EXISTS (SELECT 1 FROM Administracion.Parques WHERE id = @id_parque), 'El parque no existe', NULL),
-        IIF(EXISTS (SELECT 1 FROM RRHH.AsignacionesDeGuias 
-                        WHERE guia_id = @id_guia AND f_egreso IS NULL), 'El guía ya tiene una asignación activa', NULL),
-        IIF(@fecha_ingreso IS NULL, '@fecha_ingreso no puede ser nulo', NULL)
-    );
-    
-    IF (LEN(@mensajeDeError) > 0) BEGIN
-        ;THROW 50000, @mensajeDeError, 1;
+
+    --Condiciones de falla
+    --1. Si el guía no existe
+    DECLARE @condicion1 BIT = CASE 
+        WHEN NOT EXISTS (SELECT 1 FROM RRHH.Guias WHERE id = @id_guia)
+        THEN 1 ELSE 0 END;
+
+    DECLARE @mensaje1 VARCHAR(100) = 'El guía no existe.';
+
+    --2. Si el parque no existe
+    DECLARE @condicion2 BIT = CASE 
+        WHEN NOT EXISTS (SELECT 1 FROM Administracion.Parques WHERE id = @id_parque)
+        THEN 1 ELSE 0 END;
+
+    DECLARE @mensaje2 VARCHAR(100) = 'El parque no existe.';
+
+    --3. Si el guía ya tiene una asignación activa
+    DECLARE @condicion3 BIT = CASE 
+        WHEN EXISTS (SELECT 1 FROM RRHH.AsignacionesDeGuias 
+                        WHERE guia_id = @id_guia AND f_egreso IS NULL)
+        THEN 1 ELSE 0 END;
+
+    DECLARE @mensaje3 VARCHAR(100) = 'El guía ya tiene una asignación activa.';
+
+    --4. Si la fecha de ingreso es nula
+    DECLARE @condicion4 BIT = CASE 
+        WHEN @fecha_ingreso IS NULL
+        THEN 1 ELSE 0 END;
+
+    DECLARE @mensaje4 VARCHAR(100) = 'La fecha de ingreso no puede ser nula.';
+
+    --Generación del mensaje de error.
+    DECLARE @mensajeDeError VARCHAR(MAX) = CONCAT_WS(CHAR(10),
+        IIF(@condicion1 = 1, @mensaje1, NULL),
+        IIF(@condicion2 = 1, @mensaje2, NULL),
+        IIF(@condicion3 = 1, @mensaje3, NULL),
+        IIF(@condicion4 = 1, @mensaje4, NULL)
+        );
+
+    --Si falló, muestra mensaje de error, no hace cambios.
+    IF (LEN(@mensajeDeError) > 0)
+    BEGIN
+        RAISERROR(@mensajeDeError, 1, 1);
     END;
 
-    BEGIN TRY
+    --Si todo salió bien, se genera la asignación y el guía pasa a estar activo
+    --(independientemente de si ya tiene autorizaciones para dar tours o no).
+    ELSE
+    BEGIN
         BEGIN TRANSACTION
         SAVE TRANSACTION ComienzoSP
 
-        INSERT INTO RRHH.AsignacionesDeGuias
-        (parque_id, guia_id, f_ingreso)
-        VALUES
-        (@id_parque, @id_guia, @fecha_ingreso);
+        BEGIN TRY
+            INSERT INTO RRHH.AsignacionesDeGuias
+            (parque_id, guia_id, f_ingreso)
+            VALUES
+            (@id_parque, @id_guia, @fecha_ingreso);
 
-        SET @id = SCOPE_IDENTITY();
+            SET @id = SCOPE_IDENTITY();
 
-        -- Al tener una asignación vigente, el guía pasa a estar activo
-        -- (independientemente de si ya tiene autorizaciones para dar tours o no).
-        UPDATE RRHH.Guias
-        SET esta_activo = 1
-        WHERE id = @id_guia;
+            UPDATE RRHH.Guias
+            SET esta_activo = 1
+            WHERE id = @id_guia;
 
-        COMMIT TRANSACTION
-    END TRY
-    BEGIN CATCH
-        IF @@TRANCOUNT > 0
-        BEGIN
-            ROLLBACK TRANSACTION ComienzoSP;
-        END;
-        ;THROW;
-    END CATCH
+            COMMIT TRANSACTION
+        END TRY
+        BEGIN CATCH
+            IF @@TRANCOUNT > 0
+            BEGIN
+                ROLLBACK TRANSACTION ComienzoSP;
+            END;
+            ;THROW;
+        END CATCH
+    END
 END
 GO
 
 
 -- Remueve la asignación de un guía a un parque.
 CREATE OR ALTER PROCEDURE RRHH.FinalizarAsignacionGuia
-    @id_guia INT, -- Es ID de la asignación
+    @id_guia INT, -- Es ID del guía
     @fecha_egreso DATE,
     @motivo VARCHAR(200) = NULL
 AS
@@ -142,45 +197,73 @@ BEGIN
 
     DECLARE @fechaIngreso DATE = (SELECT f_ingreso FROM RRHH.AsignacionesDeGuias WHERE guia_id = @id_guia AND f_egreso IS NULL);
 
-    DECLARE @mensajeDeError VARCHAR(500) = CONCAT_WS(CHAR(10),
-        IIF(@fechaIngreso IS NULL , 'El guía no tiene una asignación activa', NULL),
-        IIF(@fecha_egreso IS NULL, '@fecha_egreso no puede ser nulo', NULL),
-        IIF(@fecha_egreso < @fechaIngreso, 'La fecha de egreso no puede ser anterior al ingreso.', NULL)
-    );
+    --Condiciones de falla
+    --1. Si el guía no tiene una asignación activa
+    DECLARE @condicion1 BIT = CASE 
+        WHEN @fechaIngreso IS NULL
+        THEN 1 ELSE 0 END;
 
-    IF (LEN(@mensajeDeError) > 0) BEGIN
-        ;THROW 50000, @mensajeDeError, 1;
+    DECLARE @mensaje1 VARCHAR(100) = 'El guía no tiene una asignación activa.';
+
+    --2. Si la fecha de egreso es nula
+    DECLARE @condicion2 BIT = CASE 
+        WHEN @fecha_egreso IS NULL
+        THEN 1 ELSE 0 END;
+
+    DECLARE @mensaje2 VARCHAR(100) = 'La fecha de egreso no puede ser nula.';
+
+    --3. Si la fecha de egreso es anterior al ingreso
+    DECLARE @condicion3 BIT = CASE 
+        WHEN @fecha_egreso < @fechaIngreso
+        THEN 1 ELSE 0 END;
+
+    DECLARE @mensaje3 VARCHAR(100) = 'La fecha de egreso no puede ser anterior al ingreso.';
+
+    --Generación del mensaje de error.
+    DECLARE @mensajeDeError VARCHAR(MAX) = CONCAT_WS(CHAR(10),
+        IIF(@condicion1 = 1, @mensaje1, NULL),
+        IIF(@condicion2 = 1, @mensaje2, NULL),
+        IIF(@condicion3 = 1, @mensaje3, NULL)
+        );
+
+    --Si falló, muestra mensaje de error, no hace cambios.
+    IF (LEN(@mensajeDeError) > 0)
+    BEGIN
+        RAISERROR(@mensajeDeError, 1, 1);
     END;
 
-    BEGIN TRANSACTION
-    SAVE TRANSACTION ComienzoSP
-    BEGIN TRY
-        UPDATE RRHH.AsignacionesDeGuias
-        SET f_egreso = @fecha_egreso, 
-            motivo_egreso = @motivo
-        WHERE guia_id = @id_guia AND f_egreso IS NULL;
+    --Si todo salió bien, se finaliza la asignación, se cierran sus autorizaciones activas
+    --y el guía pasa a estar inactivo.
+    ELSE
+    BEGIN
+        BEGIN TRANSACTION
+        SAVE TRANSACTION ComienzoSP
 
-        -- Si un guía deja de estar asignado a un parque, se terminan sus permisos activos.
-        UPDATE RRHH.AutorizacionesDeGuias 
-        SET f_fin = @fecha_egreso
-        WHERE guia_id = @id_guia AND f_fin IS NULL;
+        BEGIN TRY
+            UPDATE RRHH.AsignacionesDeGuias
+            SET f_egreso = @fecha_egreso, 
+                motivo_egreso = @motivo
+            WHERE guia_id = @id_guia AND f_egreso IS NULL;
 
-        -- Al finalizar la asignación, el guía pasa a estar inactivo.
-        UPDATE RRHH.Guias
-        SET esta_activo = 0
-        WHERE id = @id_guia;
+            -- Si un guía deja de estar asignado a un parque, se terminan sus permisos activos.
+            UPDATE RRHH.AutorizacionesDeGuias 
+            SET f_fin = @fecha_egreso
+            WHERE guia_id = @id_guia AND f_fin IS NULL;
 
-    COMMIT TRANSACTION
-    END TRY
-    BEGIN CATCH
-        IF @@TRANCOUNT > 0
-        BEGIN
-            ROLLBACK TRANSACTION ComienzoSP;
-        END;
+            UPDATE RRHH.Guias
+            SET esta_activo = 0
+            WHERE id = @id_guia;
 
-        ;THROW;
-    END CATCH
-
+            COMMIT TRANSACTION
+        END TRY
+        BEGIN CATCH
+            IF @@TRANCOUNT > 0
+            BEGIN
+                ROLLBACK TRANSACTION ComienzoSP;
+            END;
+            ;THROW;
+        END CATCH
+    END
 END
 GO
 
@@ -194,50 +277,96 @@ AS
 BEGIN
     SET NOCOUNT ON
 
-    -- 1. La tarifa debe ser un Tour.
-    -- 2. El guía debe tener una asignación activa en ese parque.
     DECLARE @tipoArticulo CHAR(1) = (SELECT tipo_articulo 
                                      FROM Administracion.TarifasDeArticulo 
                                      WHERE id = @id_tarifa);
-    DECLARE @guiaExiste BIT = IIF(NOT EXISTS (SELECT 1 FROM RRHH.Guias WHERE id = @id_guia), 0, 1);
+    DECLARE @guiaExiste BIT = IIF(EXISTS (SELECT 1 FROM RRHH.Guias WHERE id = @id_guia), 1, 0);
 
-    DECLARE @mensajeDeError VARCHAR(500) = CONCAT_WS(CHAR(10),
-        IIF(@guiaExiste = 0, 'El guía no existe', NULL),
-        IIF(@tipoArticulo IS NULL, 'El tour no existe', NULL),
-        IIF(@tipoArticulo <> 'T', 'La actividad no es un tour', NULL),
-        IIF(@fecha_inicio IS NULL, '@fecha_inicio no puede ser nulo', NULL)
-    );
+    -- Solo si el guía y la tarifa son reales, y la tarifa es un tour, tiene sentido
+    -- buscar la asignación del guía al parque del tour.
+    DECLARE @parqueId INT;
+    DECLARE @fechaIngreso DATE;
+    IF (@guiaExiste = 1 AND @tipoArticulo = 'T')
+    BEGIN
+        SELECT @parqueId = parque_id
+        FROM Administracion.TarifasDeArticulo
+        WHERE id = @id_tarifa;
 
-    IF (@tipoArticulo = 'T' AND @guiaExiste = 1)
-    begin
-        -- Si el tour y el guia son reales, validamos la asignacion del guía al parque
-        
-        -- Obtenemos el parque del tour.
-        DECLARE @parqueId INT = (SELECT parque_id
-                                 FROM Administracion.TarifasDeArticulo 
-                                 WHERE id = @id_tarifa);
-        -- Validamos asignacion
-        DECLARE @fechaIngreso DATE = (SELECT f_ingreso FROM RRHH.AsignacionesDeGuias
-                                           WHERE guia_id = @id_guia
-                                           AND parque_id = @parqueId
-                                           AND f_egreso IS NULL);
-        
-        SET @mensajeDeError += CONCAT_WS(CHAR(10),
-                                   IIF(@fechaIngreso IS NULL, 'El guía no está asignado al parque del tour', NULL),
-                                   IIF(@fecha_inicio < @fechaIngreso, 'La fecha de autorizacion no puede ser menor a su ingreso en el parque', NULL)
-                               );
+        SELECT @fechaIngreso = f_ingreso 
+        FROM RRHH.AsignacionesDeGuias
+        WHERE guia_id = @id_guia
+          AND parque_id = @parqueId
+          AND f_egreso IS NULL;
     END;
 
-    IF (LEN(@mensajeDeError) > 0) BEGIN
-        ;THROW 50000, @mensajeDeError, 1;
+    --Condiciones de falla
+    --1. Si el guía no existe
+    DECLARE @condicion1 BIT = CASE 
+        WHEN @guiaExiste = 0
+        THEN 1 ELSE 0 END;
+
+    DECLARE @mensaje1 VARCHAR(100) = 'El guía no existe.';
+
+    --2. Si el tour no existe
+    DECLARE @condicion2 BIT = CASE 
+        WHEN @tipoArticulo IS NULL
+        THEN 1 ELSE 0 END;
+
+    DECLARE @mensaje2 VARCHAR(100) = 'El tour no existe.';
+
+    --3. Si la actividad indicada no es un tour
+    DECLARE @condicion3 BIT = CASE 
+        WHEN @tipoArticulo IS NOT NULL AND @tipoArticulo <> 'T'
+        THEN 1 ELSE 0 END;
+
+    DECLARE @mensaje3 VARCHAR(100) = 'La actividad no es un tour.';
+
+    --4. Si la fecha de inicio es nula
+    DECLARE @condicion4 BIT = CASE 
+        WHEN @fecha_inicio IS NULL
+        THEN 1 ELSE 0 END;
+
+    DECLARE @mensaje4 VARCHAR(100) = 'La fecha de inicio no puede ser nula.';
+
+    --5. Si, siendo el guía y el tour reales, el guía no está asignado al parque del tour
+    DECLARE @condicion5 BIT = CASE 
+        WHEN @guiaExiste = 1 AND @tipoArticulo = 'T' AND @fechaIngreso IS NULL
+        THEN 1 ELSE 0 END;
+
+    DECLARE @mensaje5 VARCHAR(100) = 'El guía no está asignado al parque del tour.';
+
+    --6. Si la fecha de autorización es anterior al ingreso del guía al parque
+    DECLARE @condicion6 BIT = CASE 
+        WHEN @guiaExiste = 1 AND @tipoArticulo = 'T' AND @fechaIngreso IS NOT NULL AND @fecha_inicio < @fechaIngreso
+        THEN 1 ELSE 0 END;
+
+    DECLARE @mensaje6 VARCHAR(100) = 'La fecha de autorización no puede ser menor a su ingreso en el parque.';
+
+    --Generación del mensaje de error.
+    DECLARE @mensajeDeError VARCHAR(MAX) = CONCAT_WS(CHAR(10),
+        IIF(@condicion1 = 1, @mensaje1, NULL),
+        IIF(@condicion2 = 1, @mensaje2, NULL),
+        IIF(@condicion3 = 1, @mensaje3, NULL),
+        IIF(@condicion4 = 1, @mensaje4, NULL),
+        IIF(@condicion5 = 1, @mensaje5, NULL),
+        IIF(@condicion6 = 1, @mensaje6, NULL)
+        );
+
+    --Si falló, muestra mensaje de error, no hace cambios.
+    IF (LEN(@mensajeDeError) > 0)
+    BEGIN
+        RAISERROR(@mensajeDeError, 1, 1);
     END;
 
-    -- INSERT
-    INSERT INTO RRHH.AutorizacionesDeGuias 
-    (articulo_id, guia_id, f_inicio)
-    VALUES (@id_tarifa, @id_guia, @fecha_inicio);
+    --Si todo salió bien, se autoriza al guía a dar el tour.
+    ELSE
+    BEGIN
+        INSERT INTO RRHH.AutorizacionesDeGuias 
+        (articulo_id, guia_id, f_inicio)
+        VALUES (@id_tarifa, @id_guia, @fecha_inicio);
 
-    SET @id = SCOPE_IDENTITY();
+        SET @id = SCOPE_IDENTITY();
+    END
 END
 GO
 
@@ -250,41 +379,69 @@ AS
 BEGIN
     SET NOCOUNT ON
 
-    -- 1. El guía debe estar autorizado al tour que se desea remover.
-       -- (por consistencia de los Store Procedures, si está autorizado a dar el tour, está asignado al parque y la actividad es un tour)
-    DECLARE @tipoArticulo CHAR(1) = (SELECT tipo_articulo 
-                                     FROM Administracion.TarifasDeArticulo 
-                                     WHERE id = @id_tarifa);
-    DECLARE @guiaExiste BIT = IIF(NOT EXISTS (SELECT 1 FROM RRHH.Guias WHERE id = @id_guia), 0, 1);
-    DECLARE @tarifaExiste BIT = IIF(NOT EXISTS (SELECT 1 FROM Administracion.TarifasDeArticulo WHERE id = @id_tarifa), 0, 1);
+    -- Por consistencia de los Store Procedures: si está autorizado a dar el tour,
+    -- está asignado al parque y la actividad es un tour.
+    DECLARE @guiaExiste BIT = IIF(EXISTS (SELECT 1 FROM RRHH.Guias WHERE id = @id_guia), 1, 0);
+    DECLARE @tarifaExiste BIT = IIF(EXISTS (SELECT 1 FROM Administracion.TarifasDeArticulo WHERE id = @id_tarifa), 1, 0);
 
-    DECLARE @mensajeDeError VARCHAR(500) = CONCAT_WS(CHAR(10),
-        IIF(@guiaExiste = 0, 'El guía no existe', NULL),
-        IIF(@tarifaExiste = 0, 'La tarifa no existe', NULL)
-    );
-
+    DECLARE @fechaInicio DATE;
     IF (@guiaExiste = 1 AND @tarifaExiste = 1)
-    begin
-        -- Si el tour y el guia son reales, validamos la autorizacion, y las fechas
-        DECLARE @fechaInicio DATE = (SELECT f_inicio 
+    BEGIN
+        SELECT @fechaInicio = f_inicio
         FROM RRHH.AutorizacionesDeGuias
-        WHERE guia_id = @id_guia AND articulo_id = @id_tarifa AND f_fin IS NULL);
-
-        SET @mensajeDeError += CONCAT_WS(CHAR(10),
-                                   IIF(@fechaInicio IS NULL, 'El guía no está autorizado a dar ese tour', ''),
-                                   IIF(@fecha_fin < @fechaInicio, 'La fecha de fin no puede ser anterior a la fecha de autorizacion', '')
-                               );
+        WHERE guia_id = @id_guia AND articulo_id = @id_tarifa AND f_fin IS NULL;
     END;
 
-    IF (LEN(@mensajeDeError) > 0) BEGIN
-        ;THROW 50000, @mensajeDeError, 1;
+    --Condiciones de falla
+    --1. Si el guía no existe
+    DECLARE @condicion1 BIT = CASE 
+        WHEN @guiaExiste = 0
+        THEN 1 ELSE 0 END;
+
+    DECLARE @mensaje1 VARCHAR(100) = 'El guía no existe.';
+
+    --2. Si la tarifa no existe
+    DECLARE @condicion2 BIT = CASE 
+        WHEN @tarifaExiste = 0
+        THEN 1 ELSE 0 END;
+
+    DECLARE @mensaje2 VARCHAR(100) = 'La tarifa no existe.';
+
+    --3. Si, siendo el guía y la tarifa reales, el guía no está autorizado a dar ese tour
+    DECLARE @condicion3 BIT = CASE 
+        WHEN @guiaExiste = 1 AND @tarifaExiste = 1 AND @fechaInicio IS NULL
+        THEN 1 ELSE 0 END;
+
+    DECLARE @mensaje3 VARCHAR(100) = 'El guía no está autorizado a dar ese tour.';
+
+    --4. Si la fecha de fin es anterior a la fecha de autorización
+    DECLARE @condicion4 BIT = CASE 
+        WHEN @guiaExiste = 1 AND @tarifaExiste = 1 AND @fechaInicio IS NOT NULL AND @fecha_fin < @fechaInicio
+        THEN 1 ELSE 0 END;
+
+    DECLARE @mensaje4 VARCHAR(100) = 'La fecha de fin no puede ser anterior a la fecha de autorización.';
+
+    --Generación del mensaje de error.
+    DECLARE @mensajeDeError VARCHAR(MAX) = CONCAT_WS(CHAR(10),
+        IIF(@condicion1 = 1, @mensaje1, NULL),
+        IIF(@condicion2 = 1, @mensaje2, NULL),
+        IIF(@condicion3 = 1, @mensaje3, NULL),
+        IIF(@condicion4 = 1, @mensaje4, NULL)
+        );
+
+    --Si falló, muestra mensaje de error, no hace cambios.
+    IF (LEN(@mensajeDeError) > 0)
+    BEGIN
+        RAISERROR(@mensajeDeError, 1, 1);
     END;
 
-    -- INSERT
-    UPDATE RRHH.AutorizacionesDeGuias
-    SET f_fin = @fecha_fin
-    WHERE guia_id = @id_guia AND articulo_id = @id_tarifa AND f_fin IS NULL;
-
+    --Si todo salió bien, se revoca la autorización.
+    ELSE
+    BEGIN
+        UPDATE RRHH.AutorizacionesDeGuias
+        SET f_fin = @fecha_fin
+        WHERE guia_id = @id_guia AND articulo_id = @id_tarifa AND f_fin IS NULL;
+    END
 END
 GO
 
@@ -296,25 +453,68 @@ CREATE OR ALTER PROCEDURE RRHH.EditarGuia
     @fecha_nacimiento DATE
 AS
 BEGIN
-    SET NOCOUNT ON;
-    
-    DECLARE @mensajeDeError VARCHAR(500) = CONCAT_WS(CHAR(10),
-        IIF(NOT EXISTS (SELECT 1 FROM RRHH.Guias WHERE id = @id), 'El guía no existe', NULL),
-        IIF(@nombre IS NULL, '@nombre no puede ser nulo', NULL),
-        IIF(@apellido IS NULL, '@apellido no puede ser nulo', NULL),
-        IIF(@fecha_nacimiento IS NULL, '@fecha_nacimiento no puede ser nulo', NULL),
-        IIF(@fecha_nacimiento > DATEADD(year, -18, GETDATE()), 'El guía debe ser mayor de edad', NULL)
-    );
+    SET NOCOUNT ON
 
-    IF (LEN(@mensajeDeError) > 0) BEGIN
-        ;THROW 50000, @mensajeDeError, 1;
+    --Condiciones de falla
+    --1. Si el guía no existe
+    DECLARE @condicion1 BIT = CASE 
+        WHEN NOT EXISTS (SELECT 1 FROM RRHH.Guias WHERE id = @id)
+        THEN 1 ELSE 0 END;
+
+    DECLARE @mensaje1 VARCHAR(100) = 'El guía no existe.';
+
+    --2. Si el nombre es nulo
+    DECLARE @condicion2 BIT = CASE 
+        WHEN @nombre IS NULL
+        THEN 1 ELSE 0 END;
+
+    DECLARE @mensaje2 VARCHAR(100) = 'El nombre no puede ser nulo.';
+
+    --3. Si el apellido es nulo
+    DECLARE @condicion3 BIT = CASE 
+        WHEN @apellido IS NULL
+        THEN 1 ELSE 0 END;
+
+    DECLARE @mensaje3 VARCHAR(100) = 'El apellido no puede ser nulo.';
+
+    --4. Si la fecha de nacimiento es nula
+    DECLARE @condicion4 BIT = CASE 
+        WHEN @fecha_nacimiento IS NULL
+        THEN 1 ELSE 0 END;
+
+    DECLARE @mensaje4 VARCHAR(100) = 'La fecha de nacimiento no puede ser nula.';
+
+    --5. Si el guía no es mayor de edad
+    DECLARE @condicion5 BIT = CASE 
+        WHEN @fecha_nacimiento > DATEADD(year, -18, GETDATE())
+        THEN 1 ELSE 0 END;
+
+    DECLARE @mensaje5 VARCHAR(100) = 'El guía debe ser mayor de edad.';
+
+    --Generación del mensaje de error.
+    DECLARE @mensajeDeError VARCHAR(MAX) = CONCAT_WS(CHAR(10),
+        IIF(@condicion1 = 1, @mensaje1, NULL),
+        IIF(@condicion2 = 1, @mensaje2, NULL),
+        IIF(@condicion3 = 1, @mensaje3, NULL),
+        IIF(@condicion4 = 1, @mensaje4, NULL),
+        IIF(@condicion5 = 1, @mensaje5, NULL)
+        );
+
+    --Si falló, muestra mensaje de error, no hace cambios.
+    IF (LEN(@mensajeDeError) > 0)
+    BEGIN
+        RAISERROR(@mensajeDeError, 1, 1);
     END;
 
-    UPDATE RRHH.Guias
-    SET nombre = @nombre,
-        apellido = @apellido,
-        f_nacimiento = @fecha_nacimiento
-    WHERE id = @id;
+    --Si todo salió bien, se edita el guía.
+    ELSE
+    BEGIN
+        UPDATE RRHH.Guias
+        SET nombre = @nombre,
+            apellido = @apellido,
+            f_nacimiento = @fecha_nacimiento
+        WHERE id = @id;
+    END
 END;
 GO
 
@@ -323,19 +523,40 @@ CREATE OR ALTER PROCEDURE RRHH.EliminarGuia
     @id INT
 AS
 BEGIN
-    SET NOCOUNT ON;
-    
-    -- Validamos que el guía exista y que NUNCA haya tenido una asignación
-    DECLARE @mensajeDeError VARCHAR(500) = CONCAT_WS(CHAR(10),
-        IIF(NOT EXISTS (SELECT 1 FROM RRHH.Guias WHERE id = @id), 'El guía no existe', NULL),
-        IIF(EXISTS (SELECT 1 FROM RRHH.AsignacionesDeGuias WHERE guia_id = @id), 'No se puede eliminar el guía porque tiene o tuvo asignaciones a parques/actividades', NULL)
-    );
+    SET NOCOUNT ON
 
-    IF (LEN(@mensajeDeError) > 0) BEGIN
-        ;THROW 50000, @mensajeDeError, 1;
+    --Condiciones de falla
+    --1. Si el guía no existe
+    DECLARE @condicion1 BIT = CASE 
+        WHEN NOT EXISTS (SELECT 1 FROM RRHH.Guias WHERE id = @id)
+        THEN 1 ELSE 0 END;
+
+    DECLARE @mensaje1 VARCHAR(100) = 'El guía no existe.';
+
+    --2. Si el guía tiene o tuvo asignaciones a parques/actividades
+    DECLARE @condicion2 BIT = CASE 
+        WHEN EXISTS (SELECT 1 FROM RRHH.AsignacionesDeGuias WHERE guia_id = @id)
+        THEN 1 ELSE 0 END;
+
+    DECLARE @mensaje2 VARCHAR(100) = 'No se puede eliminar el guía porque tiene o tuvo asignaciones a parques/actividades.';
+
+    --Generación del mensaje de error.
+    DECLARE @mensajeDeError VARCHAR(MAX) = CONCAT_WS(CHAR(10),
+        IIF(@condicion1 = 1, @mensaje1, NULL),
+        IIF(@condicion2 = 1, @mensaje2, NULL)
+        );
+
+    --Si falló, muestra mensaje de error, no hace cambios.
+    IF (LEN(@mensajeDeError) > 0)
+    BEGIN
+        RAISERROR(@mensajeDeError, 1, 1);
     END;
 
-    DELETE FROM RRHH.Guias
-    WHERE id = @id;
+    --Si todo salió bien, se elimina el guía.
+    ELSE
+    BEGIN
+        DELETE FROM RRHH.Guias
+        WHERE id = @id;
+    END
 END;
 GO

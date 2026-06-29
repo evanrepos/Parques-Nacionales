@@ -76,8 +76,8 @@ SELECT * FROM Ventas.DetallesDeTicket
 SELECT * FROM Ventas.Entradas
 SELECT * FROM Ventas.Actividades
 SELECT * FROM Ventas.ParticipaEnTour
-SELECT * FROM Ventas.Tours
 ORDER BY tour_id
+SELECT * FROM Ventas.Tours
 
 SET NOCOUNT ON
 */

@@ -310,7 +310,7 @@ BEGIN
                 WHERE id = @i
     
                 --PRINT @categoria_conservacion
-                EXEC Administracion.IngresarProvincias @nombre = @provincia;
+                EXEC Administracion.IngresarProvincias @descripcion = @provincia;
                 SET @i = @i + 1;
             END
         COMMIT TRANSACTION;

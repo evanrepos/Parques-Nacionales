@@ -26,27 +26,76 @@ CREATE OR ALTER PROCEDURE Comercial.RegistrarEmpresa
 AS
 BEGIN
     SET NOCOUNT ON
-    
-    DECLARE @mensajeDeError VARCHAR(500) = CONCAT_WS(CHAR(10),
-        IIF(@cuit IS NULL, '@cuit no puede ser nulo', NULL),
-        IIF(@cuit not between 20000000001 and 339999999999, '@cuit invalido', NULL),
-        IIF(EXISTS (SELECT 1 FROM Comercial.Empresas WHERE cuit = @cuit), 'El CUIT ya está asociado a una empresa', NULL),
-        IIF(@razon_social IS NULL, '@razon social no puede ser nulo', NULL),
-        IIF(@direccion_legal IS NULL, '@direccion_legal no puede ser nulo', NULL),
-        IIF(@comienzo_actividad IS NULL, '@comienzo_actividad no puede ser nulo', NULL),
-        IIF(@comienzo_actividad > GETDATE(), '@comienzo_actividad no puede ser posterior a la fecha actual', NULL)
+
+    --Condiciones de falla
+    --1. Si el cuit es nulo o no respeta el rango válido
+    DECLARE @condicion1 BIT = CASE 
+        WHEN @cuit IS NULL OR @cuit NOT BETWEEN 20000000001 AND 339999999999
+        THEN 1 ELSE 0 END;
+
+    DECLARE @mensaje1 VARCHAR(100) = 'El cuit es nulo o inválido.';
+
+    --2. Si el cuit ingresado ya está asociado a una empresa
+    DECLARE @condicion2 BIT = CASE 
+        WHEN EXISTS (SELECT 1 FROM Comercial.Empresas WHERE cuit = @cuit)
+        THEN 1 ELSE 0 END;
+
+    DECLARE @mensaje2 VARCHAR(100) = 'El cuit ya está asociado a una empresa.';
+
+    --3. Si la razón social es nula
+    DECLARE @condicion3 BIT = CASE 
+        WHEN @razon_social IS NULL
+        THEN 1 ELSE 0 END;
+
+    DECLARE @mensaje3 VARCHAR(100) = 'La razón social no puede ser nula.';
+
+    --4. Si la dirección legal es nula
+    DECLARE @condicion4 BIT = CASE 
+        WHEN @direccion_legal IS NULL
+        THEN 1 ELSE 0 END;
+
+    DECLARE @mensaje4 VARCHAR(100) = 'La dirección legal no puede ser nula.';
+
+    --5. Si el comienzo de actividad es nulo
+    DECLARE @condicion5 BIT = CASE 
+        WHEN @comienzo_actividad IS NULL
+        THEN 1 ELSE 0 END;
+
+    DECLARE @mensaje5 VARCHAR(100) = 'El comienzo de actividad no puede ser nulo.';
+
+    --6. Si el comienzo de actividad es posterior a la fecha actual
+    DECLARE @condicion6 BIT = CASE 
+        WHEN @comienzo_actividad > GETDATE()
+        THEN 1 ELSE 0 END;
+
+    DECLARE @mensaje6 VARCHAR(100) = 'El comienzo de actividad no puede ser posterior a la fecha actual.';
+
+    --Generación del mensaje de error.
+    DECLARE @mensajeDeError VARCHAR(MAX) = CONCAT_WS(CHAR(10),
+        IIF(@condicion1 = 1, @mensaje1, NULL),
+        IIF(@condicion2 = 1, @mensaje2, NULL),
+        IIF(@condicion3 = 1, @mensaje3, NULL),
+        IIF(@condicion4 = 1, @mensaje4, NULL),
+        IIF(@condicion5 = 1, @mensaje5, NULL),
+        IIF(@condicion6 = 1, @mensaje6, NULL)
         );
 
-    IF (LEN(@mensajeDeError) > 0) BEGIN
-        ;THROW 50000, @mensajeDeError, 1;
+    --Si falló, muestra mensaje de error, no hace cambios.
+    IF (LEN(@mensajeDeError) > 0)
+    BEGIN
+        RAISERROR(@mensajeDeError, 1, 1);
     END;
 
-    INSERT INTO Comercial.Empresas
-    (cuit, razon_social, direccion_legal, comienzo_actividad)
-    VALUES
-    (@cuit, @razon_social, @direccion_legal, @comienzo_actividad);
+    --Si todo salió bien, se registra la empresa.
+    ELSE
+    BEGIN
+        INSERT INTO Comercial.Empresas
+        (cuit, razon_social, direccion_legal, comienzo_actividad)
+        VALUES
+        (@cuit, @razon_social, @direccion_legal, @comienzo_actividad);
 
-    SET @id = SCOPE_IDENTITY();
+        SET @id = SCOPE_IDENTITY();
+    END
 END
 GO
 
@@ -62,32 +111,64 @@ AS
 BEGIN
     SET NOCOUNT ON
 
-    DECLARE @mensajeDeError VARCHAR(500) = CONCAT_WS(CHAR(10),
-        IIF(@id IS NULL AND @cuit IS NULL, 'Debe indicar @id o @cuit para identificar la empresa', NULL),
-        IIF(@razon_social_nueva IS NULL AND @direccion_legal_nueva IS NULL AND @comienzo_actividad_nuevo IS NULL, 'Debe indicar al menos un campo a modificar', NULL),
-        IIF(@comienzo_actividad_nuevo > GETDATE(), '@comienzo_actividad_nuevo no puede ser posterior a la fecha actual', NULL)
-    );
-
-    IF (LEN(@mensajeDeError) > 0) BEGIN
-        ;THROW 50000, @mensajeDeError, 1;
-    END;
-
     -- Resolución de la PK real a partir de @id o @cuit
     DECLARE @id_real INT;
     SELECT @id_real = id
     FROM Comercial.Empresas
     WHERE id = @id OR cuit = @cuit;
 
-    IF (@id_real IS NULL) BEGIN
-        ;THROW 50000, 'La empresa no existe', 1;
+    --Condiciones de falla
+    --1. Si no se indicó @id ni @cuit para identificar la empresa
+    DECLARE @condicion1 BIT = CASE 
+        WHEN @id IS NULL AND @cuit IS NULL
+        THEN 1 ELSE 0 END;
+
+    DECLARE @mensaje1 VARCHAR(100) = 'Debe indicar @id o @cuit para identificar la empresa.';
+
+    --2. Si la empresa indicada no existe
+    DECLARE @condicion2 BIT = CASE 
+        WHEN @id_real IS NULL
+        THEN 1 ELSE 0 END;
+
+    DECLARE @mensaje2 VARCHAR(100) = 'La empresa no existe.';
+
+    --3. Si no se indicó ningún campo nuevo a modificar
+    DECLARE @condicion3 BIT = CASE 
+        WHEN @razon_social_nueva IS NULL AND @direccion_legal_nueva IS NULL AND @comienzo_actividad_nuevo IS NULL
+        THEN 1 ELSE 0 END;
+
+    DECLARE @mensaje3 VARCHAR(100) = 'Debe indicar al menos un campo a modificar.';
+
+    --4. Si el nuevo comienzo de actividad es posterior a la fecha actual
+    DECLARE @condicion4 BIT = CASE 
+        WHEN @comienzo_actividad_nuevo > GETDATE()
+        THEN 1 ELSE 0 END;
+
+    DECLARE @mensaje4 VARCHAR(100) = 'El comienzo de actividad no puede ser posterior a la fecha actual.';
+
+    --Generación del mensaje de error.
+    DECLARE @mensajeDeError VARCHAR(MAX) = CONCAT_WS(CHAR(10),
+        IIF(@condicion1 = 1, @mensaje1, NULL),
+        IIF(@condicion2 = 1, @mensaje2, NULL),
+        IIF(@condicion3 = 1, @mensaje3, NULL),
+        IIF(@condicion4 = 1, @mensaje4, NULL)
+        );
+
+    --Si falló, muestra mensaje de error, no hace cambios.
+    IF (LEN(@mensajeDeError) > 0)
+    BEGIN
+        RAISERROR(@mensajeDeError, 1, 1);
     END;
 
-    UPDATE Comercial.Empresas
-    SET razon_social       = ISNULL(@razon_social_nueva, razon_social),
-        direccion_legal     = ISNULL(@direccion_legal_nueva, direccion_legal),
-        comienzo_actividad = ISNULL(@comienzo_actividad_nuevo, comienzo_actividad)
-    WHERE id = @id_real;
-
+    --Si todo salió bien, se modifica la empresa.
+    ELSE
+    BEGIN
+        UPDATE Comercial.Empresas
+        SET razon_social       = ISNULL(@razon_social_nueva, razon_social),
+            direccion_legal    = ISNULL(@direccion_legal_nueva, direccion_legal),
+            comienzo_actividad = ISNULL(@comienzo_actividad_nuevo, comienzo_actividad)
+        WHERE id = @id_real;
+    END
 END
 GO
 
@@ -99,25 +180,51 @@ AS
 BEGIN
     SET NOCOUNT ON
 
-    IF (@id IS NULL AND @cuit IS NULL) BEGIN
-        ;THROW 50000, 'Debe indicar @id o @cuit para identificar la empresa', 1;
-    END;
-
     DECLARE @id_real INT;
     SELECT @id_real = id
     FROM Comercial.Empresas
     WHERE id = @id OR cuit = @cuit;
 
-    DECLARE @mensajeDeError VARCHAR(500) = CONCAT_WS(CHAR(10),
-        IIF(@id_real IS NULL, 'La empresa no existe', NULL),
-        IIF(EXISTS (SELECT 1 FROM Comercial.Concesiones WHERE empresa_id = @id_real), 'La empresa tiene concesiones asociadas.', NULL)
-    );
+    --Condiciones de falla
+    --1. Si no se indicó @id ni @cuit para identificar la empresa
+    DECLARE @condicion1 BIT = CASE 
+        WHEN @id IS NULL AND @cuit IS NULL
+        THEN 1 ELSE 0 END;
 
-    IF (LEN(@mensajeDeError) > 0) BEGIN
-        ;THROW 50000, @mensajeDeError, 1;
+    DECLARE @mensaje1 VARCHAR(100) = 'Debe indicar @id o @cuit para identificar la empresa.';
+
+    --2. Si la empresa indicada no existe
+    DECLARE @condicion2 BIT = CASE 
+        WHEN @id_real IS NULL
+        THEN 1 ELSE 0 END;
+
+    DECLARE @mensaje2 VARCHAR(100) = 'La empresa no existe.';
+
+    --3. Si la empresa tiene concesiones asociadas
+    DECLARE @condicion3 BIT = CASE 
+        WHEN EXISTS (SELECT 1 FROM Comercial.Concesiones WHERE empresa_id = @id_real)
+        THEN 1 ELSE 0 END;
+
+    DECLARE @mensaje3 VARCHAR(100) = 'La empresa tiene concesiones asociadas.';
+
+    --Generación del mensaje de error.
+    DECLARE @mensajeDeError VARCHAR(MAX) = CONCAT_WS(CHAR(10),
+        IIF(@condicion1 = 1, @mensaje1, NULL),
+        IIF(@condicion2 = 1, @mensaje2, NULL),
+        IIF(@condicion3 = 1, @mensaje3, NULL)
+        );
+
+    --Si falló, muestra mensaje de error, no hace cambios.
+    IF (LEN(@mensajeDeError) > 0)
+    BEGIN
+        RAISERROR(@mensajeDeError, 1, 1);
     END;
 
-    DELETE FROM Comercial.Empresas
-    WHERE id = @id_real;
+    --Si todo salió bien, se elimina la empresa.
+    ELSE
+    BEGIN
+        DELETE FROM Comercial.Empresas
+        WHERE id = @id_real;
+    END
 END
 GO

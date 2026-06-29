@@ -7,7 +7,7 @@ GO
 -- =============================================
 -- Ticket de Venta (GENERABLE)
 -- =============================================
-CREATE OR ALTER PROCEDURE Ventas.GenerarTicketsDeVenta (@fecha_inicio DATE)
+CREATE OR ALTER PROCEDURE Ventas.GenerarTicketsDeVenta (@fecha_inicio DATE, @fecha_fin DATE = @fecha_inicio, @hora_apertura TIME = '07:00:00', @hora_cierre TIME = '19:00:00')
 AS
 BEGIN
     BEGIN TRY
@@ -20,8 +20,8 @@ BEGIN
             DECLARE @es_extranjero BIT;
             DECLARE @cotizacion DECIMAL(18, 2);
             DECLARE @f_actualizacion DATETIME;
-            DECLARE @f_inicio DATETIME = CONCAT(CAST(CAST(@fecha_inicio AS DATE) AS VARCHAR) , 'T07:00:00');
-            DECLARE @f_fin DATETIME = DATEADD(HOUR, 12, @f_inicio);
+            DECLARE @f_inicio DATETIME = CAST(@fecha_inicio AS DATETIME) + CAST(@hora_apertura AS DATETIME);
+            DECLARE @f_fin DATETIME = CAST(@fecha_fin AS DATETIME) + CAST(@hora_cierre AS DATETIME);
             
             SELECT TOP 1 @punto_venta_id = id, @parque_id = parque_id FROM Administracion.PuntosDeVenta ORDER BY NEWID();
             WHILE @f_inicio <= @f_fin
@@ -29,11 +29,41 @@ BEGIN
                 --PUNTO DE VENTA
                 --PARQUE
                 SELECT TOP 1 @punto_venta_id = id, @parque_id = parque_id
-                    FROM Administracion.PuntosDeVenta 
+                    FROM Administracion.PuntosDeVenta ptoVenta
+                    WHERE NOT EXISTS (SELECT 1 FROM Ventas.TicketsDeVenta WHERE punto_venta_id = ptoVenta.id AND parque_id = ptoVenta.parque_id AND f_generacion = @f_inicio)
                     ORDER BY NEWID();
-                IF EXISTS (SELECT 1 FROM Ventas.TicketsDeVenta WHERE punto_venta_id = @punto_venta_id AND parque_id = @parque_id AND f_generacion = @f_inicio)
+                IF @punto_venta_id IS NULL OR @parque_id IS NULL
                 BEGIN
-                    SET @f_inicio = DATEADD(MINUTE, 5, @f_inicio);
+                    DECLARE @incremento_max INT;
+
+                    SET @incremento_max =
+                    CASE
+                        -- Verano (alta temporada)
+                        WHEN MONTH(@f_inicio) IN (1, 2) THEN 15
+
+                        -- Vacaciones de invierno
+                        WHEN MONTH(@f_inicio) = 7 THEN 20
+
+                        -- Temporada media
+                        WHEN MONTH(@f_inicio) IN (3, 4, 9, 10, 11, 12) THEN 30
+
+                        -- Temporada baja
+                        ELSE 45
+                    END;
+
+                    DECLARE @incremento INT = ABS(CHECKSUM(NEWID()) % @incremento_max);
+                    IF CAST(CAST(@f_inicio AS DATE) AS DATETIME) + CAST(@hora_cierre AS DATETIME) < DATEADD(SECOND, @incremento, @f_inicio)
+                    BEGIN
+                        -- Pasó la hora de cierre: ir al día siguiente a la hora de apertura
+                        SET @f_inicio =
+                            CAST(DATEADD(DAY, 1, CAST(@f_inicio AS DATE)) AS DATETIME)
+                            + CAST(@hora_apertura AS DATETIME);
+                    END
+                    ELSE
+                    BEGIN
+                        -- Sigue dentro del horario del día actual
+                        SET @f_inicio = DATEADD(SECOND, @incremento, @f_inicio);
+                    END
                 END
 
                 --FORMA DE PAGO
@@ -62,9 +92,37 @@ BEGIN
                 --SELECT @punto_venta_id, @parque_id, @forma_pago, @divisa_id, @cotizacion, @f_generacion, @total
                 EXEC Ventas.InsertarTicketsDeVenta @punto_venta_id, @parque_id, @forma_pago, @divisa_id, @cotizacion, @f_inicio, NULL;
     
-                --O sino, que decida cuando generar incrementos nulos, para simular ventas de tours y agotar cupos;D
-                DECLARE @incremento INT = ABS(CHECKSUM(NEWID()) % 30);
-                SELECT @f_inicio = DATEADD(SECOND, @incremento, @f_inicio);
+                --O sino, que decida cuando generar incrementos nulos, para simular ventas de tours y agotar cupos ;D
+                --DECLARE @incremento_max INT;
+
+                SET @incremento_max =
+                CASE
+                    -- Verano (alta temporada)
+                    WHEN MONTH(@f_inicio) IN (1, 2) THEN 15
+
+                    -- Vacaciones de invierno
+                    WHEN MONTH(@f_inicio) = 7 THEN 20
+
+                    -- Temporada media
+                    WHEN MONTH(@f_inicio) IN (3, 4, 9, 10, 11, 12) THEN 30
+
+                    -- Temporada baja
+                    ELSE 45
+                END;
+
+                SET @incremento = ABS(CHECKSUM(NEWID()) % @incremento_max);
+                IF CAST(CAST(@f_inicio AS DATE) AS DATETIME) + CAST(@hora_cierre AS DATETIME) < DATEADD(SECOND, @incremento, @f_inicio)
+                BEGIN
+                    -- Pasó la hora de cierre: ir al día siguiente a la hora de apertura
+                    SET @f_inicio =
+                        CAST(DATEADD(DAY, 1, CAST(@f_inicio AS DATE)) AS DATETIME)
+                        + CAST(@hora_apertura AS DATETIME);
+                END
+                ELSE
+                BEGIN
+                    -- Sigue dentro del horario del día actual
+                    SET @f_inicio = DATEADD(MINUTE, @incremento, @f_inicio);
+                END
             END
 
         COMMIT TRANSACTION;
@@ -199,7 +257,7 @@ GO
 -- Tours (GENERABLE)
 -- =============================================
 --Generar TOURS para cada parque en forma periódica, y no a pedido. Por cada pedido, restar el cupo de tour.
-CREATE OR ALTER PROCEDURE Ventas.GenerarTours (@fecha_inicio DATE)
+CREATE OR ALTER PROCEDURE Ventas.GenerarTours (@fecha_inicio DATE, @fecha_fin DATE = @fecha_inicio, @hora_apertura TIME = '09:00:00', @hora_cierre TIME = '17:00:00')
 AS
 BEGIN
     BEGIN TRY
@@ -210,8 +268,8 @@ BEGIN
             DECLARE @precio INT; 
             DECLARE @cant_cupos INT;
             DECLARE @duracion SMALLINT; --Duracion permite saber cada cuanto repetir el tour durante el día.
-            DECLARE @f_inicio SMALLDATETIME = CONCAT(CAST(CAST(@fecha_inicio AS DATE) AS VARCHAR) , 'T09:00:00');
-            DECLARE @f_cierre SMALLDATETIME = CONCAT(CAST(CAST(@fecha_inicio AS DATE) AS VARCHAR) , 'T17:00:00');
+            DECLARE @f_inicio DATETIME = CAST(@fecha_inicio AS DATETIME) + CAST(@hora_apertura AS DATETIME);
+            DECLARE @f_cierre DATETIME = CAST(@fecha_fin AS DATETIME) + CAST(@hora_cierre AS DATETIME);
             
             CREATE TABLE #tours_asignados (
                 id INT IDENTITY(1, 1),
@@ -274,7 +332,18 @@ BEGIN
 
                     SET @guia_id = (SELECT TOP 1 guia_id FROM RRHH.AutorizacionesDeGuias WHERE articulo_id = @tarifa_id ORDER BY NEWID());
 
-                    SET @f_visita = DATEADD(MINUTE, @duracion, @f_visita);
+                    IF CAST(CAST(@f_visita AS DATE) AS DATETIME) + CAST(@hora_cierre AS DATETIME) < DATEADD(MINUTE, @duracion, @f_visita)
+                    BEGIN
+                        -- Pasó la hora de cierre: ir al día siguiente a la hora de apertura
+                        SET @f_visita =
+                            CAST(DATEADD(DAY, 1, CAST(@f_visita AS DATE)) AS DATETIME)
+                            + CAST(@hora_apertura AS DATETIME);
+                    END
+                    ELSE
+                    BEGIN
+                        -- Sigue dentro del horario del día actual
+                        SET @f_visita = DATEADD(MINUTE, @duracion, @f_visita);
+                    END
                 END
 
                 SET @indice_actividad += 1;
@@ -307,14 +376,15 @@ GO
 -- CARGA
 -- =============================================
 
-CREATE OR ALTER PROCEDURE Ventas.GenerarDatos
+CREATE OR ALTER PROCEDURE Ventas.GenerarDatos (@fecha_inicio DATE, @fecha_fin DATE = @fecha_inicio, @hora_apertura TIME = '07:00:00', @hora_cierre TIME = '19:00:00')
 AS
 BEGIN
     BEGIN TRY
+        SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED
         BEGIN TRANSACTION;
-            EXEC Ventas.GenerarTicketsDeVenta '2026-05-01'
+            EXEC Ventas.GenerarTicketsDeVenta @fecha_inicio, @fecha_fin, @hora_apertura, @hora_cierre 
             
-            EXEC Ventas.GenerarTours '2026-05-01'
+            EXEC Ventas.GenerarTours @fecha_inicio, @fecha_fin, '08:00:00', '17:00:00'
         --COMMIT TRANSACTION
         --BEGIN TRANSACTION
             EXEC Ventas.GenerarDetallesDeVenta 
@@ -351,4 +421,4 @@ BEGIN
 END
 GO
 
-EXEC Ventas.GenerarDatos
+EXEC Ventas.GenerarDatos @fecha_inicio = '2020-01-01', @fecha_fin = '2026-06-27'

@@ -138,7 +138,7 @@ BEGIN
     FOR XML PATH('Parque'), ROOT('Parques');
 END
 GO
-
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 /*
 --1. Reportes de visitas por semana, mes y año, por parque.
 --Cantidad de tickets generados, por parque, por semana, mes y año.

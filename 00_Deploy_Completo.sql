@@ -136,6 +136,7 @@ SELECT * FROM RRHH.AutorizacionesDeGuias
 -- =============================================
 
 SELECT * FROM Ventas.TicketsDeVenta
+WHERE divisa_id = 30
 SELECT * FROM Ventas.DetallesDeTicket
 SELECT * FROM Ventas.Entradas
 SELECT * FROM Ventas.Actividades

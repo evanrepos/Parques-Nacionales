@@ -230,10 +230,10 @@ BEGIN
                     DECLARE @fActualizacion DATETIME;
                     SET @divisaId = (SELECT TOP 1 id FROM Administracion.Divisas WHERE codigo_iso <> 'ARS' ORDER BY NEWID());
                     SELECT @cotizacion = cotizacion, @fActualizacion = f_actualizacion FROM Administracion.Divisas WHERE id = @divisaId;
-                    DECLARE @desfazaje INT = DATEDIFF(HOUR, ISNULL(@fActualizacion, '1900-01-01T00:00:00'), GETDATE());
-                    IF @desfazaje > 24
+                    IF @fActualizacion <> @fIteradora
                     BEGIN
-                        EXEC Administracion.ActualizarCotizacionDivisa @divisaId;
+                        EXEC Administracion.ActualizarCotizacionDivisa @divisaId, @fIteradora;
+                        SELECT @cotizacion = cotizacion, @fActualizacion = f_actualizacion FROM Administracion.Divisas WHERE id = @divisaId;
                     END
                 END
 
@@ -442,4 +442,13 @@ BEGIN
 END
 GO
 
-EXEC Ventas.GenerarDatos @fecha_inicio = '2025-01-01', @fecha_fin = '2026-06-30'
+DECLARE @fIteradora DATE = '2025-01-01';
+DECLARE @fFin DATE = '2026-06-30';
+WHILE @fIteradora <= @fFin
+BEGIN
+    DECLARE @incrementoDias INT = ABS(CHECKSUM(NEWID())) % 7;
+
+    EXEC Ventas.GenerarDatos @fecha_inicio = @fIteradora
+
+    SET @fIteradora = DATEADD(DAY, @incrementoDias, @fIteradora);
+END

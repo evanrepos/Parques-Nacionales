@@ -74,8 +74,6 @@ BEGIN
             DECLARE @id_divisa INT;
             DECLARE @codigo_iso NVARCHAR(6);
             DECLARE @descripcion VARCHAR(30);
-            DECLARE @f_actualizacion SMALLDATETIME;
-            DECLARE @desfazaje INT;
 
             --Ingresar Divisas
             SET @indice_divisa = 1;
@@ -96,12 +94,11 @@ BEGIN
             WHILE @indice_divisa <= @cant_divisas
             BEGIN
 
-                SELECT @id_divisa = id, @codigo_iso = codigo_iso, @f_actualizacion = f_actualizacion FROM Administracion.Divisas WHERE id = @indice_divisa;
+                SELECT @id_divisa = id, @codigo_iso = codigo_iso FROM Administracion.Divisas WHERE id = @indice_divisa;
+                DECLARE @fecha_hoy DATE = GETDATE();
 
-                SET @desfazaje = DATEDIFF(HOUR, ISNULL(@f_actualizacion, '1900-01-01T00:00:00'), GETDATE());
-
-                IF @codigo_iso <> 'ARS' AND @desfazaje > 24
-                    EXEC Administracion.ActualizarCotizacionDivisa @id_divisa
+                IF @codigo_iso <> 'ARS'
+                    EXEC Administracion.ActualizarCotizacionDivisa @divisa_id = @id_divisa, @f_consulta = @fecha_hoy;
 
                 SET @indice_divisa = @indice_divisa + 1;
             END

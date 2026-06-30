@@ -717,7 +717,8 @@ END
 GO
 
 CREATE OR ALTER PROCEDURE Administracion.ActualizarCotizacionDivisa
-    @divisa_id VARCHAR(6) = NULL
+    @divisa_id VARCHAR(6) = NULL,
+    @f_consulta DATE = NULL
 AS
 BEGIN
     SET NOCOUNT ON
@@ -739,12 +740,11 @@ BEGIN
     DECLARE @mensaje2 VARCHAR(100) = 'El código ISO y la descripción no pueden ser nulos, o inexistentes.';
         
     --3. Si la fecha de actualización es menor a 24 horas (Política de la API)
-    DECLARE @f_actualizacion SMALLDATETIME = (SELECT f_actualizacion FROM Administracion.Divisas WHERE id = @divisa_id);
     DECLARE @condicion3 BIT = CASE 
-        WHEN DATEDIFF(HOUR, @f_actualizacion, GETDATE()) < 24
+        WHEN @f_consulta IS NULL
         THEN 1 ELSE 0 END;
 
-    DECLARE @mensaje3 VARCHAR(100) = 'La divisa ya fue consultada anteriormente, espere 24 horas después de la última actualización.';
+    DECLARE @mensaje3 VARCHAR(100) = 'La fecha de consulta no puede ser nula.';
         
     --Generación del mensaje de error.
     DECLARE @mensajeDeError VARCHAR(MAX) = CONCAT_WS(CHAR(10),
@@ -762,32 +762,37 @@ BEGIN
     --Si todo salió bien, se actualiza la cotizacion de la divisa.
     ELSE
     BEGIN
-        DECLARE @link NVARCHAR(200) = 
-            (SELECT LTRIM(CONCAT('https://api.currencyfreaks.com/latest?apikey=63af7539cf5947cba710cd39b1be8797&symbols=ARS,', @codigo_iso), ' '));
+        DECLARE @fecha_actualizacion VARCHAR(MAX) = CAST(@f_consulta AS VARCHAR(MAX));
+        DECLARE @ResponseTable TABLE (JsonRaw VARCHAR(MAX));
+        DECLARE @link NVARCHAR(200) = CONCAT('https://api.frankfurter.dev/v2/rates?date=', @fecha_actualizacion ,'&base=', @codigo_iso, '&quotes=ARS');
         DECLARE @Object INT;
-        DECLARE @response VARCHAR(8000);
+        DECLARE @hr INT;
+        DECLARE @FinalJSON VARCHAR(MAX);
 
-        EXEC sp_OACreate 'MSXML2.ServerXMLHTTP.6.0', @Object OUT;
-        EXEC sp_OAMethod @Object, 'open', NULL, 'GET', @link, 'false';
-        EXEC sp_OAMethod @Object, 'send';
-        EXEC sp_OAGetProperty @Object, 'responseText', @response OUT;
+        EXEC @hr = sp_OACreate 'MSXML2.ServerXMLHTTP.6.0', @Object OUT;
+        EXEC @hr = sp_OAMethod @Object, 'open', NULL, 'GET', @link, 'false';
+        EXEC @hr = sp_OAMethod @Object, 'setRequestHeader', NULL, 'Accept', 'application/json';
+        EXEC @hr = sp_OAMethod @Object, 'setRequestHeader', NULL, 'User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)';
+        EXEC @hr = sp_OAMethod @Object, 'send';
 
-        CREATE TABLE #cotizacion (
-            ars NVARCHAR(30),
-            iso NVARCHAR(30)
+        INSERT INTO @ResponseTable
+            EXEC sp_OAGetProperty @Object, 'responseText';
+            EXEC sp_OADestroy @Object;
+            SELECT TOP 1 @FinalJSON = JsonRaw FROM @ResponseTable;
+
+        -- Si es un JSON real y válido, se procesa de forma nativa sin errores
+        DECLARE @cotizacion DECIMAL(19, 6);
+        SELECT 
+            @cotizacion = CAST(cotizacion AS DECIMAL(19, 6))
+        FROM @ResponseTable
+        CROSS APPLY OPENJSON(JsonRaw)
+        WITH (
+            fecha  VARCHAR(10)  '$.date',
+            base   VARCHAR(4)  '$.base',
+            referida VARCHAR(4)  '$.quote',
+            cotizacion  VARCHAR(20)  '$.rate'
         )
-
-        DECLARE @sql NVARCHAR(MAX);
-        SET @sql = N'
-            INSERT INTO #cotizacion 
-                SELECT JSON_VALUE(@response, ''$.rates.ARS''), JSON_VALUE(@response, ''$.rates.' + @codigo_iso + ''')';
-        EXEC sp_executesql @sql, N'@response NVARCHAR(MAX)', @response = @response;
-        EXEC sp_OADestroy @Object;
-
-        DECLARE @cotizacion DECIMAL(18, 2);
-        SELECT @cotizacion = CAST(ars AS DECIMAL(18, 2)) / CAST(iso AS DECIMAL(22, 6)), @f_actualizacion = GETDATE() FROM #cotizacion
-
-        UPDATE Administracion.Divisas SET cotizacion = @cotizacion, f_actualizacion = @f_actualizacion WHERE id = @divisa_id;
+        UPDATE Administracion.Divisas SET cotizacion = @cotizacion, f_actualizacion = GETDATE() WHERE id = @divisa_id;
     END
 END
 GO

@@ -139,6 +139,11 @@ BEGIN
 END
 GO
 --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+EXEC Administracion.GenerarReporteIngresos
+GO
+EXEC Administracion.GenerarReporteConcesiones
+GO
+
 /*
 --1. Reportes de visitas por semana, mes y año, por parque.
 --Cantidad de tickets generados, por parque, por semana, mes y año.
@@ -265,9 +270,9 @@ LEFT JOIN ingresos_concesiones concesion
    AND entrada.mes = concesion.mes
    AND entrada.año = concesion.año
 ORDER BY entrada.parque_id,
-        semana,
+        año,
         mes,
-        año
+        semana
 GO
 
 --3. Deudores.

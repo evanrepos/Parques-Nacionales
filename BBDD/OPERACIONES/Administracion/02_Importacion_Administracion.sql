@@ -157,6 +157,58 @@ END
 GO
 
 -- =============================================
+-- Feriados (IMPORTABLE)
+-- =============================================
+
+CREATE OR ALTER PROCEDURE Administracion.GenerarFeriados (@año SMALLINT)
+AS
+BEGIN
+    DECLARE @link NVARCHAR(200) = CONCAT('https://api.argentinadatos.com/v1/feriados/', CAST(@año AS VARCHAR));
+    DECLARE @Object INT;
+    DECLARE @response VARCHAR(8000);
+    EXEC sp_OACreate 'MSXML2.ServerXMLHTTP.6.0', @Object OUT;
+    EXEC sp_OAMethod @Object, 'open', NULL, 'GET', @link, 'false';
+    EXEC sp_OAMethod @Object, 'send';
+    EXEC sp_OAGetProperty @Object, 'responseText', @response OUT;
+
+    DECLARE @feriados TABLE (
+        id INT IDENTITY(1, 1),
+        fecha DATE,
+        nombre VARCHAR(50)
+    )
+
+    INSERT INTO @feriados
+        SELECT fecha, nombre
+            FROM OPENJSON(@response) CROSS APPLY 
+            OPENJSON([value])
+            WITH (
+                fecha DATE '$.fecha', 
+                nombre VARCHAR(50) '$.nombre'
+            )
+
+    DECLARE @indice_feriado INT = 1;
+    DECLARE @cant_feriados INT = (SELECT COUNT(1) FROM @feriados);
+    WHILE @indice_feriado <= @cant_feriados
+    BEGIN
+        DECLARE @mes TINYINT;
+        DECLARE @dia TINYINT;
+        DECLARE @nombre VARCHAR(50);
+        SELECT 
+            @mes = MONTH(fecha),
+            @dia = DAY(fecha),
+            @nombre = nombre
+            FROM @feriados
+            WHERE id = @indice_feriado
+        EXEC Administracion.IngresarFeriados 
+            @mes = @mes, 
+            @dia = @dia, 
+            @nombre = @nombre
+        SET @indice_feriado += 1
+    END
+END
+GO
+
+-- =============================================
 -- TiposDeVisitante (GENERABLE)
 -- =============================================
 
@@ -773,6 +825,8 @@ BEGIN
             EXEC Administracion.GenerarDivisas
         
             EXEC Administracion.GenerarTiposDeFecha
+
+            EXEC Administracion.GenerarFeriados @año = 2026
         
             EXEC Administracion.GenerarTiposDeVisitante
         

@@ -27,6 +27,8 @@ CREATE OR ALTER PROCEDURE RRHH.CrearGuardaparque
 AS
 BEGIN
     SET NOCOUNT ON
+    OPEN SYMMETRIC KEY SK_Datos_Sensibles_RRHH
+    DECRYPTION BY CERTIFICATE CertificadoParques
 
     --Condiciones de falla
     --1. Si el cuil es nulo o no respeta el rango válido
@@ -38,7 +40,7 @@ BEGIN
 
     --2. Si el cuil ingresado ya está asociado a un guardaparque
     DECLARE @condicion2 BIT = CASE 
-        WHEN EXISTS (SELECT 1 FROM RRHH.Guardaparques WHERE cuil = @cuil)
+        WHEN EXISTS (SELECT 1 FROM RRHH.Guardaparques WHERE CONVERT(BIGINT, DECRYPTBYKEY(cuil)) = @cuil)
         THEN 1 ELSE 0 END;
 
     DECLARE @mensaje2 VARCHAR(100) = 'El cuil ya está asociado a un guardaparque.';
@@ -93,10 +95,18 @@ BEGIN
         INSERT INTO RRHH.Guardaparques
         (cuil, nombre, apellido, esta_activo, f_nacimiento)
         VALUES
-        (@cuil, @nombre, @apellido, 0, @fecha_nacimiento);
+        (
+            ENCRYPTBYKEY(KEY_GUID('SK_Datos_Sensibles_RRHH'), CONVERT(VARCHAR(11), @cuil)), 
+            @nombre, 
+            @apellido, 
+            0, 
+            @fecha_nacimiento
+        );
 
         SET @id = SCOPE_IDENTITY();
     END
+
+    CLOSE SYMMETRIC KEY SK_Datos_Sensibles_RRHH
 END;
 GO
 
@@ -240,14 +250,20 @@ BEGIN
         SAVE TRANSACTION ComienzoSP
 
         BEGIN TRY
+            OPEN SYMMETRIC KEY SK_Datos_Sensibles_RRHH
+            DECRYPTION BY CERTIFICATE CertificadoParques
+
             UPDATE RRHH.AsignacionesDeGuardaparques
-            SET f_egreso = @fecha_egreso, f_motivo_egreso = @motivo
+            SET 
+                f_egreso = @fecha_egreso, 
+                motivo_egreso = ENCRYPTBYKEY(KEY_GUID('SK_Datos_Sensibles_RRHH'), @motivo)
             WHERE guardaparques_id = @id_guardaparque AND f_egreso IS NULL;
 
             UPDATE RRHH.Guardaparques
             SET esta_activo = 0
             WHERE id = @id_guardaparque;
 
+            CLOSE SYMMETRIC KEY SK_Datos_Sensibles_RRHH
             COMMIT TRANSACTION
         END TRY
         BEGIN CATCH

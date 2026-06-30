@@ -27,6 +27,9 @@ AS
 BEGIN
     SET NOCOUNT ON
 
+    OPEN SYMMETRIC KEY SK_Datos_Sensibles_RRHH
+    DECRYPTION BY CERTIFICATE CertificadoParques
+
     --Condiciones de falla
     --1. Si el cuil es nulo o no respeta el rango válido
     DECLARE @condicion1 BIT = CASE 
@@ -37,7 +40,7 @@ BEGIN
 
     --2. Si el cuil ingresado ya está asociado a un guía
     DECLARE @condicion2 BIT = CASE 
-        WHEN EXISTS (SELECT 1 FROM RRHH.Guias WHERE cuil = @cuil)
+        WHEN EXISTS (SELECT 1 FROM RRHH.Guias WHERE CONVERT(VARCHAR(11), DECRYPTBYKEY(cuil)) = @cuil)
         THEN 1 ELSE 0 END;
 
     DECLARE @mensaje2 VARCHAR(100) = 'El cuil ya está asociado a un guía.';
@@ -92,10 +95,17 @@ BEGIN
         INSERT INTO RRHH.Guias
         (cuil, nombre, apellido, esta_activo, f_nacimiento)
         VALUES
-        (@cuil, @nombre, @apellido, 0, @fecha_nacimiento);
+        (
+            ENCRYPTBYKEY(KEY_GUID('SK_Datos_Sensibles_RRHH'), CONVERT(VARCHAR(11), @cuil)), 
+            @nombre, 
+            @apellido, 
+            0, 
+            @fecha_nacimiento
+        );
 
         SET @id = SCOPE_IDENTITY();
     END
+    CLOSE SYMMETRIC KEY SK_Datos_Sensibles_RRHH
 END;
 GO
 
@@ -240,9 +250,11 @@ BEGIN
         SAVE TRANSACTION ComienzoSP
 
         BEGIN TRY
+            OPEN SYMMETRIC KEY SK_Datos_Sensibles_RRHH
+            DECRYPTION BY CERTIFICATE CertificadoParques
             UPDATE RRHH.AsignacionesDeGuias
             SET f_egreso = @fecha_egreso, 
-                motivo_egreso = @motivo
+                motivo_egreso = ENCRYPTBYKEY(KEY_GUID('SK_Datos_Sensibles_RRHH'), @motivo)
             WHERE guia_id = @id_guia AND f_egreso IS NULL;
 
             -- Si un guía deja de estar asignado a un parque, se terminan sus permisos activos.
@@ -254,6 +266,7 @@ BEGIN
             SET esta_activo = 0
             WHERE id = @id_guia;
 
+            CLOSE SYMMETRIC KEY SK_Datos_Sensibles_RRHH
             COMMIT TRANSACTION
         END TRY
         BEGIN CATCH

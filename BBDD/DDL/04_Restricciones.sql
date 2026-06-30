@@ -56,18 +56,12 @@ BEGIN
         ADD CONSTRAINT FK_Puntos_De_Venta_Parques FOREIGN KEY (parque_id) REFERENCES Administracion.Parques(id)    
 END
 GO
-
 IF OBJECT_ID('RRHH.Guardaparques', 'U') IS NOT NULL
 BEGIN
     ALTER TABLE RRHH.Guardaparques    
         ADD CONSTRAINT DF_Guardaparques_Esta_Activo DEFAULT 0 FOR esta_activo
-    ALTER TABLE RRHH.Guardaparques    
-        ADD CONSTRAINT UQ_Guardaparques_Cuil UNIQUE (cuil)
-    ALTER TABLE RRHH.Guardaparques    
-        ADD CONSTRAINT CK_Guardaparques_Cuil CHECK (cuil BETWEEN 20000000001 AND 339999999999)
 END
 GO
-
 IF OBJECT_ID('RRHH.AsignacionesDeGuardaparques', 'U') IS NOT NULL
 BEGIN
     ALTER TABLE RRHH.AsignacionesDeGuardaparques    
@@ -76,18 +70,12 @@ BEGIN
         ADD CONSTRAINT FK_Asignaciones_Guardaparques FOREIGN KEY (guardaparques_id) REFERENCES RRHH.Guardaparques(id)
 END
 GO
-
 IF OBJECT_ID('RRHH.Guias', 'U') IS NOT NULL
 BEGIN
     ALTER TABLE RRHH.Guias    
         ADD CONSTRAINT DF_Guias_Esta_Activo DEFAULT 0 FOR esta_activo
-    ALTER TABLE RRHH.Guias    
-        ADD CONSTRAINT UQ_Guias_Cuil UNIQUE (cuil)
-    ALTER TABLE RRHH.Guias    
-        ADD CONSTRAINT CK_Guias_Cuil CHECK (cuil BETWEEN 20000000001 AND 339999999999)
 END
 GO
-
 IF OBJECT_ID('RRHH.AsignacionesDeGuias', 'U') IS NOT NULL
 BEGIN
     ALTER TABLE RRHH.AsignacionesDeGuias    
@@ -106,16 +94,6 @@ BEGIN
 END
 GO
 
-IF OBJECT_ID('Comercial.Empresas', 'U') IS NOT NULL
-BEGIN
-    ALTER TABLE Comercial.Empresas    
-        ADD CONSTRAINT UQ_Empresas_Cuit UNIQUE (cuit)
-    ALTER TABLE Comercial.Empresas    
-        ADD CONSTRAINT CK_Empresas_Cuit CHECK (cuit BETWEEN 20000000001 AND 339999999999)
-END
-GO
-
--- TODO: Regla de negocio, al menos dos semanas de concesion ?
 IF OBJECT_ID('Comercial.Concesiones', 'U') IS NOT NULL
 BEGIN
     ALTER TABLE Comercial.Concesiones    

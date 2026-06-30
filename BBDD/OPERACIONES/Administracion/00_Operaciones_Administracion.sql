@@ -17,6 +17,32 @@
 USE ParquesNacionales
 GO
 
+--FUNCIONES
+CREATE OR ALTER FUNCTION Administracion.ObtenerTipoDeFecha (@fecha DATETIME)
+RETURNS INT
+AS
+BEGIN
+    DECLARE @tipoFechaId INT;
+    IF EXISTS (SELECT 1 FROM Administracion.Feriados
+        WHERE mes = MONTH(@fecha) AND dia = DAY(@fecha)
+        )
+    BEGIN
+        SELECT @tipoFechaId = id FROM Administracion.TiposDeFecha WHERE descripcion = 'Feriado nacional';
+    END
+    --Dia de semana
+    ELSE IF DATEPART(WEEKDAY, @fecha) BETWEEN 1 AND 5
+    BEGIN
+        SELECT @tipoFechaId = id FROM Administracion.TiposDeFecha WHERE descripcion = 'Día hábil'
+    END
+    --Fin de semana
+    ELSE IF DATEPART(WEEKDAY, @fecha) BETWEEN 6 AND 7
+    BEGIN
+        SELECT @tipoFechaId = id FROM Administracion.TiposDeFecha WHERE descripcion = 'Fin de semana'
+    END
+    RETURN @tipoFechaId;
+END
+GO
+
 --INGRESAR DATOS
 --Ingresar registros paramétricas.
 CREATE OR ALTER PROCEDURE Administracion.IngresarFormasDePago 
@@ -139,6 +165,60 @@ BEGIN
     ELSE
     BEGIN
         INSERT INTO Administracion.TiposDeFecha (descripcion) VALUES (@descripcion)
+    END
+END;
+GO
+
+CREATE OR ALTER PROCEDURE Administracion.IngresarFeriados
+    @mes TINYINT NULL,
+    @dia TINYINT NULL,
+    @nombre VARCHAR(50) = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    --Condiciones de falla
+    --1. Si el mes es nulo o está fuera de rango
+    DECLARE @condicion1 BIT = CASE 
+        WHEN @mes IS NULL OR @mes < 1 OR 12 < @mes
+        THEN 1 ELSE 0 END;
+
+    DECLARE @mensaje1 VARCHAR(100) = 'El mes debe estar entre 1 y 12.';
+
+    --2. Si día es nulo o está fuera de rango
+    DECLARE @condicion2 BIT = CASE 
+        WHEN @dia IS NULL OR @dia < 1 OR 31 < @dia
+        THEN 1 ELSE 0 END;
+
+    DECLARE @mensaje2 VARCHAR(100) = 'El dia debe estar entre 1 y 31.';
+    
+    --3. Si ya existe un par (mes, dia) en la tabla
+    DECLARE @condicion3 BIT = CASE 
+        WHEN EXISTS (
+            SELECT 1 FROM Administracion.Feriados 
+            WHERE mes = @mes AND dia = @dia
+        )
+        THEN 1 ELSE 0 END;
+
+    DECLARE @mensaje3 VARCHAR(100) = 'El feriado ya existe.';
+
+    --Generación del mensaje de error.
+    DECLARE @mensajeDeError VARCHAR(MAX) = CONCAT_WS(CHAR(10),
+        IIF(@condicion1 = 1, @mensaje1, NULL),
+        IIF(@condicion2 = 1, @mensaje2, NULL),
+        IIF(@condicion3 = 1, @mensaje3, NULL)
+        );
+
+    --Si falló, muestra mensaje de error, no hace cambios.
+    IF (LEN(@mensajeDeError) > 0)
+    BEGIN
+        RAISERROR(@mensajeDeError, 1, 1);
+    END;
+
+    --Si todo salió bien, se ingresa el tipo de fecha.
+    ELSE
+    BEGIN
+        INSERT INTO Administracion.Feriados (mes, dia, nombre) VALUES (@mes, @dia, @nombre)
     END
 END;
 GO

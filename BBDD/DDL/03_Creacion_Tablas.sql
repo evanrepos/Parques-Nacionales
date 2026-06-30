@@ -3,6 +3,17 @@ GO
 
 --CREACION TABLAS
 --Paramétricas
+IF OBJECT_ID('Administracion.Feriados', 'U') IS NULL
+BEGIN
+    CREATE TABLE Administracion.Feriados (
+        id INT PRIMARY KEY IDENTITY(1,1),
+        mes TINYINT NOT NULL,
+        dia TINYINT NOT NULL,
+        nombre VARCHAR(50)
+    );
+END
+GO
+
 IF OBJECT_ID('Administracion.FormasDePago', 'U') IS NULL
 BEGIN
     CREATE TABLE Administracion.FormasDePago (
@@ -18,7 +29,7 @@ BEGIN
         id INT PRIMARY KEY IDENTITY(1,1),
         codigo_iso VARCHAR(6) NOT NULL,
         descripcion VARCHAR(100) NOT NULL,
-        cotizacion DECIMAL(19, 6) NOT NULL,
+        cotizacion DECIMAL(19, 6) NULL,
         f_actualizacion SMALLDATETIME NULL
     );
 END
@@ -116,11 +127,11 @@ IF OBJECT_ID('RRHH.Guardaparques', 'U') IS NULL
 BEGIN
     CREATE TABLE RRHH.Guardaparques (
         id INT PRIMARY KEY IDENTITY(1,1),
-        cuil BIGINT NOT NULL,
+        cuil VARBINARY(256) NOT NULL, --CANDIDATO A CIFRADO
         nombre VARCHAR(100) NOT NULL,
         apellido VARCHAR(100) NOT NULL,
         esta_activo BIT NOT NULL,
-        f_nacimiento DATE NOT NULL
+        f_nacimiento DATE NOT NULL 
     );
 END
 GO
@@ -133,7 +144,7 @@ BEGIN
         guardaparques_id INT NOT NULL,
         f_ingreso DATE NOT NULL,
         f_egreso DATE NULL,
-        f_motivo_egreso VARCHAR(200) NULL
+        motivo_egreso VARBINARY(200) NULL --CANDIDATO A CIFRADO
     );
 END
 GO
@@ -142,7 +153,7 @@ IF OBJECT_ID('RRHH.Guias', 'U') IS NULL
 BEGIN
     CREATE TABLE RRHH.Guias (
     	id INT PRIMARY KEY IDENTITY(1,1),
-    	cuil BIGINT NOT NULL,
+    	cuil VARBINARY(256) NOT NULL, --CANDIDATO A CIFRADO
     	nombre VARCHAR(100) NOT NULL,
     	apellido VARCHAR(100) NOT NULL,
         esta_activo BIT NOT NULL,
@@ -159,7 +170,7 @@ BEGIN
         guia_id INT NOT NULL,
         f_ingreso DATE NOT NULL,
         f_egreso DATE,
-        motivo_egreso VARCHAR(200)
+        motivo_egreso VARBINARY(MAX) --CANDIDATO A CIFRADO
     );
 END
 GO
@@ -190,9 +201,9 @@ IF OBJECT_ID('Comercial.Empresas', 'U') IS NULL
 BEGIN
     CREATE TABLE Comercial.Empresas (
     	id INT PRIMARY KEY IDENTITY(1,1),
-    	cuit BIGINT NOT NULL,
+    	cuit VARBINARY(256) NOT NULL, --CANDIDATO A CIFRADO
     	razon_social VARCHAR(100) NOT NULL,
-    	direccion_legal VARCHAR(100) NOT NULL,
+    	direccion_legal VARBINARY(MAX) NOT NULL, --CANDIDATO A CIFRADO
     	comienzo_actividad DATE NOT NULL
     );
 END

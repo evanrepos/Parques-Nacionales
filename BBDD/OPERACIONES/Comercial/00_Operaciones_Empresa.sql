@@ -27,6 +27,9 @@ AS
 BEGIN
     SET NOCOUNT ON
 
+    OPEN SYMMETRIC KEY SK_Datos_Sensibles_Empresa
+    DECRYPTION BY CERTIFICATE CertificadoParques;
+
     --Condiciones de falla
     --1. Si el cuit es nulo o no respeta el rango válido
     DECLARE @condicion1 BIT = CASE 
@@ -37,7 +40,7 @@ BEGIN
 
     --2. Si el cuit ingresado ya está asociado a una empresa
     DECLARE @condicion2 BIT = CASE 
-        WHEN EXISTS (SELECT 1 FROM Comercial.Empresas WHERE cuit = @cuit)
+        WHEN EXISTS (SELECT 1 FROM Comercial.Empresas WHERE CONVERT(VARCHAR(11), DECRYPTBYKEY(cuit)) = @cuit)
         THEN 1 ELSE 0 END;
 
     DECLARE @mensaje2 VARCHAR(100) = 'El cuit ya está asociado a una empresa.';
@@ -92,10 +95,16 @@ BEGIN
         INSERT INTO Comercial.Empresas
         (cuit, razon_social, direccion_legal, comienzo_actividad)
         VALUES
-        (@cuit, @razon_social, @direccion_legal, @comienzo_actividad);
+        (
+            ENCRYPTBYKEY(KEY_GUID('SK_Datos_Sensibles_Empresa'), CONVERT(CHAR(11), @cuit)), 
+            @razon_social, 
+            ENCRYPTBYKEY(KEY_GUID('SK_Datos_Sensibles_Empresa'), @direccion_legal), 
+            @comienzo_actividad
+        );
 
         SET @id = SCOPE_IDENTITY();
     END
+    CLOSE SYMMETRIC KEY SK_Datos_Sensibles_Empresa
 END
 GO
 
@@ -111,11 +120,19 @@ AS
 BEGIN
     SET NOCOUNT ON
 
+    OPEN SYMMETRIC KEY SK_Datos_Sensibles_Empresa
+    DECRYPTION BY CERTIFICATE CertificadoParques
+
     -- Resolución de la PK real a partir de @id o @cuit
     DECLARE @id_real INT;
-    SELECT @id_real = id
-    FROM Comercial.Empresas
-    WHERE id = @id OR cuit = @cuit;
+    IF @id IS NOT NULL
+        SELECT @id_real = id
+        FROM Comercial.Empresas
+        WHERE id = @id;
+    ELSE
+        SELECT @id_real = id
+        FROM Comercial.Empresas
+        WHERE CONVERT(BIGINT, DECRYPTBYKEY(cuit)) = @cuit;
 
     --Condiciones de falla
     --1. Si no se indicó @id ni @cuit para identificar la empresa
@@ -165,10 +182,11 @@ BEGIN
     BEGIN
         UPDATE Comercial.Empresas
         SET razon_social       = ISNULL(@razon_social_nueva, razon_social),
-            direccion_legal    = ISNULL(@direccion_legal_nueva, direccion_legal),
+            direccion_legal    = ISNULL(ENCRYPTBYKEY(KEY_GUID('SK_Datos_Sensibles_Empresa'), @direccion_legal_nueva), direccion_legal),
             comienzo_actividad = ISNULL(@comienzo_actividad_nuevo, comienzo_actividad)
         WHERE id = @id_real;
     END
+    CLOSE SYMMETRIC KEY SK_Datos_Sensibles_Empresa
 END
 GO
 
@@ -180,10 +198,18 @@ AS
 BEGIN
     SET NOCOUNT ON
 
+    OPEN SYMMETRIC KEY SK_Datos_Sensibles_Empresa
+    DECRYPTION BY CERTIFICATE CertificadoParques
+
     DECLARE @id_real INT;
-    SELECT @id_real = id
-    FROM Comercial.Empresas
-    WHERE id = @id OR cuit = @cuit;
+    IF @id IS NOT NULL
+        SELECT @id_real = id
+        FROM Comercial.Empresas
+        WHERE id = @id;
+    ELSE
+        SELECT @id_real = id
+        FROM Comercial.Empresas
+        WHERE CONVERT(BIGINT, DECRYPTBYKEY(cuit)) = @cuit;
 
     --Condiciones de falla
     --1. Si no se indicó @id ni @cuit para identificar la empresa
@@ -213,7 +239,7 @@ BEGIN
         IIF(@condicion2 = 1, @mensaje2, NULL),
         IIF(@condicion3 = 1, @mensaje3, NULL)
         );
-
+        
     --Si falló, muestra mensaje de error, no hace cambios.
     IF (LEN(@mensajeDeError) > 0)
     BEGIN
@@ -226,5 +252,7 @@ BEGIN
         DELETE FROM Comercial.Empresas
         WHERE id = @id_real;
     END
+
+    CLOSE SYMMETRIC KEY SK_Datos_Sensibles_Empresa
 END
 GO

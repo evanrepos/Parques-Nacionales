@@ -397,7 +397,7 @@ CREATE OR ALTER PROCEDURE Ventas.InsertarTicketsDeVenta
     @cotizacion DECIMAL(15, 5) = NULL,
     @f_generacion DATETIME = NULL,
     @tipo_fecha_id INT NULL,
-    @total DECIMAL(12, 2) = NULL,
+    @total DECIMAL(12, 2) = 0,
     @id INT = NULL OUTPUT
 AS
 BEGIN
@@ -486,45 +486,19 @@ BEGIN
         RAISERROR(@mensajeDeError, 1, 1);
     END;
 
-    --Si todo salió bien,  .
+    --Si todo salió bien.
     ELSE
     BEGIN
-        --Feriado
-        DECLARE @link NVARCHAR(200) = 'https://api.argentinadatos.com/v1/feriados/2026';
-        DECLARE @Object INT;
-        DECLARE @response VARCHAR(8000);
-        EXEC sp_OACreate 'MSXML2.ServerXMLHTTP.6.0', @Object OUT;
-        EXEC sp_OAMethod @Object, 'open', NULL, 'GET', @link, 'false';
-        EXEC sp_OAMethod @Object, 'send';
-        EXEC sp_OAGetProperty @Object, 'responseText', @response OUT;
-        IF EXISTS (SELECT 1
-            FROM OPENJSON(@response) 
-                CROSS APPLY OPENJSON([value])
-            WITH (
-                fecha DATE '$.fecha',
-                tipo VARCHAR(20) '$.tipo',
-                nombre VARCHAR(200) '$.nombre'
-            ) WHERE fecha = @f_generacion)
+        IF @tipo_fecha_id IS NULL
         BEGIN
-            SELECT @tipo_fecha_id = id FROM Administracion.TiposDeFecha WHERE descripcion LIKE '%Feriado Nacional%'
-        END
-        --Dia de semana
-        ELSE IF DATEPART(WEEKDAY, @f_generacion) BETWEEN 1 AND 5
-        BEGIN
-            SELECT @tipo_fecha_id = id FROM Administracion.TiposDeFecha WHERE descripcion LIKE '%Dia Habil%'
-        END
-        --Fin de semana
-        ELSE IF DATEPART(WEEKDAY, @f_generacion) BETWEEN 6 AND 7
-        BEGIN
-            SELECT @tipo_fecha_id = id FROM Administracion.TiposDeFecha WHERE descripcion LIKE '%Fin de Semana%'
+            SELECT @tipo_fecha_id = Administracion.ObtenerTipoDeFecha(@f_generacion)
         END
 
         BEGIN TRY
-            INSERT INTO Ventas.TicketsDeVenta (
-                punto_venta_id, parque_id, forma_pago_id, divisa_id, cotizacion, f_generacion, tipo_fecha_id, total
-            ) VALUES (
-                @punto_venta_id, @parque_id, @forma_pago_id, @divisa_id, @cotizacion, ISNULL(@f_generacion, GETDATE()), @tipo_fecha_id, @total
-            );
+            INSERT INTO Ventas.TicketsDeVenta 
+                (punto_venta_id, parque_id, forma_pago_id, divisa_id, cotizacion, f_generacion, tipo_fecha_id, total) 
+            VALUES
+                (@punto_venta_id, @parque_id, @forma_pago_id, @divisa_id, @cotizacion, ISNULL(@f_generacion, GETDATE()), @tipo_fecha_id, @total);
 
             SET @id = SCOPE_IDENTITY();
         END TRY
@@ -593,7 +567,7 @@ BEGIN
         WHEN NOT EXISTS (SELECT 1 FROM Administracion.TiposDeVisitante WHERE id = @tipo_visitante_id)
         THEN 1 ELSE 0 END;
 
-    DECLARE @mensaje6 VARCHAR(100) = 'La tarifa no existe';
+    DECLARE @mensaje6 VARCHAR(100) = 'El tipo de visitante no existe';
         
     --7. Si 
     DECLARE @condicion7 BIT = CASE 
@@ -622,81 +596,78 @@ BEGIN
     --Si todo salió bien,  .
     ELSE
     BEGIN
-        -- Datos de la tarifa (para validar el ajuste y calcular el precio)
         DECLARE @precio_base DECIMAL(10, 2);
         DECLARE @tipo_articulo_tarifa CHAR(1);
-
-        SELECT @precio_base = precio, @tipo_articulo_tarifa = tipo_articulo
-            FROM Administracion.TarifasDeArticulo
-            WHERE id = @tarifa_id;
-
-        -- FECHA DE VISITA
         DECLARE @f_generacion SMALLDATETIME;
-        SELECT @f_generacion = f_generacion FROM Ventas.TicketsDeVenta WHERE id = @ticket_id;
-        --SELECT @f_generacion
-
-        -- Validación del ajuste: debe existir y su tipo_articulo debe coincidir con el de la tarifa
-        -- ID PARQUE
         DECLARE @parque_id INT;
         DECLARE @tipo_fecha_id INT;
         DECLARE @tipo_fecha VARCHAR(MAX);
+        DECLARE @tipo_visitante VARCHAR(MAX);
+        DECLARE @todo_ok BIT;
+        DECLARE @precio_unitario DECIMAL(12, 2);
+        DECLARE @subtotal_calculado DECIMAL(12, 2);
+        DECLARE @factor_fecha DECIMAL(5,2);
+        DECLARE @factor_visitante DECIMAL(5,2);
+        DECLARE @tour_id INT;
 
-        --TIPO FECHA
-        SELECT @parque_id = parque_id, @tipo_fecha_id = tipo_fecha_id FROM Ventas.TicketsDeVenta WHERE id = @ticket_id;
-        SELECT @tipo_fecha = descripcion FROM Administracion.TiposDeFecha WHERE id = @tipo_fecha_id;
+        -- 1.1. Datos de la tarifa (para validar el ajuste y calcular el precio)
+        SELECT 
+            @precio_base = precio, 
+            @tipo_articulo_tarifa = tipo_articulo
+            FROM Administracion.TarifasDeArticulo
+            WHERE id = @tarifa_id;
 
-        --TIPO VISITANTE
-        DECLARE @tipo_visitante VARCHAR(MAX)
-        SELECT @tipo_visitante = descripcion FROM Administracion.TiposDeVisitante WHERE id = @tipo_visitante_id;
+        -- 1.2. Obtener la fecha de generación, el parque y el tipo de fecha del ticket de origen
+        SELECT 
+            @f_generacion = f_generacion,
+            @parque_id = parque_id, 
+            @tipo_fecha_id = tipo_fecha_id
+        FROM Ventas.TicketsDeVenta WHERE id = @ticket_id;
 
-        --INSERTAR DETALLES DE VENTA Y GENERAR ACTIVIDADES, ENTRADAS Y TOURS.
+        -- 1.3. Calcular los precios unitario y subtotal, de acuerdo al tipo de artículo.
         BEGIN TRY
             BEGIN TRANSACTION;
 
-            DECLARE @todo_ok BIT = 0;
-            DECLARE @precio_unitario DECIMAL(12, 2) = @precio_base;
-            DECLARE @subtotal_calculado DECIMAL(12, 2) = @precio_base * @cantidad;
+            SET @todo_ok = 0;
+            SET @precio_unitario = @precio_base;
+            SET @subtotal_calculado = @precio_base * @cantidad;
 
+            -- 1.3.1. Si el tipo de artículo es Entrada.
             IF @tipo_articulo_tarifa = 'E'
             BEGIN            
-                DECLARE @factor_fecha DECIMAL(5,2);
-                DECLARE @factor_visitante DECIMAL(5,2);
+                SELECT 
+                    @factor_fecha = ISNULL(ajuste.porcentaje / 100.0, 1)
+                FROM Administracion.TiposDeFecha fecha INNER JOIN
+                    Administracion.Ajustes ajuste ON
+                    fecha.descripcion = ajuste.descripcion
+                WHERE fecha.id = @tipo_fecha_id
 
-                SELECT @factor_fecha = 1 + (porcentaje / 100.0)
-                FROM Administracion.Ajustes
-                WHERE parque_id = @parque_id
-                AND descripcion = @tipo_fecha;
+                SELECT 
+                    @factor_visitante = ISNULL(ajuste.porcentaje / 100.0, 1)
+                FROM Administracion.TiposDeVisitante visitante INNER JOIN
+                    Administracion.Ajustes ajuste ON
+                    visitante.descripcion = ajuste.descripcion
+                WHERE visitante.id = @tipo_visitante_id
 
-                SELECT @factor_visitante = 1 + (porcentaje / 100.0)
-                FROM Administracion.Ajustes
-                WHERE parque_id = @parque_id
-                AND descripcion = @tipo_visitante;
-
-                SET @factor_fecha = ISNULL(@factor_fecha, 1);
-                SET @factor_visitante = ISNULL(@factor_visitante, 1);
-
-                SET @precio_unitario = ROUND(@precio_base * (@factor_fecha * @factor_visitante), 2);
-
-                SET @subtotal_calculado =
-                    ROUND(@precio_unitario * @cantidad, 2);
+                SET @precio_unitario = ROUND(@precio_base * ((1 + @factor_fecha) * (1 + @factor_visitante)), 2);
+                SET @subtotal_calculado = ROUND(@precio_unitario * @cantidad, 2);
                 
-                --SELECT 'FACTOR FECHA' = @factor_fecha, 'FACTOR VISITANTE' = @factor_visitante, 'PRECIO BASE' = @precio_base, 'PRECIO UNITARIO' = @precio_unitario
-
-                EXEC Ventas.InsertarEntrada @tarifa_id, @ticket_id, @tipo_fecha_id, @tipo_visitante_id, @f_generacion, @precio_unitario
-                SET @todo_ok = 1;
+                IF @precio_unitario >= 0 AND @subtotal_calculado >= 0
+                BEGIN
+                    EXEC Ventas.InsertarEntrada @tarifa_id, @ticket_id, @tipo_fecha_id, @tipo_visitante_id, @f_generacion, @precio_unitario
+                    SET @todo_ok = 1;
+                END
             END
-            ELSE IF @tipo_articulo_tarifa = 'A'
+            -- 1.3.2. Si el tipo de articulo es Actividad.
+            ELSE IF @tipo_articulo_tarifa = 'A' AND @precio_unitario >= 0 AND @subtotal_calculado >= 0
             BEGIN
-                --SELECT 'PRECIO UNITARIO' = @precio_unitario
-
                 EXEC Ventas.InsertarActividad @tarifa_id, @ticket_id, @f_generacion, @precio_unitario
                 SET @todo_ok = 1;
             END
+            -- 1.3.3. Si el tipo de articulo es Tour.
             ELSE IF @tipo_articulo_tarifa = 'T'
             BEGIN
-                DECLARE @tour_id INT;
-
-                -- Buscar el próximo tour disponible con cupos suficientes
+                -- 1.3.3.1 Buscar el próximo tour disponible con cupos suficientes
                 SELECT TOP 1
                     @tour_id = id
                 FROM Ventas.Tours
@@ -705,32 +676,23 @@ BEGIN
                   AND cant_cupos >= @cantidad
                 ORDER BY f_visita;
 
-                IF @tour_id IS NOT NULL
-                   AND NOT EXISTS (
+                -- 1.3.3.2 Si el tour fue encontrado, y el ticket ingresado no participa
+                IF @tour_id IS NOT NULL AND NOT EXISTS (
                         SELECT 1
                         FROM Ventas.ParticipaEnTour
                         WHERE ticket_id = @ticket_id
                    )
                 BEGIN
                     -- Descontar los cupos reservados
-                    UPDATE Ventas.Tours
-                    SET cant_cupos = cant_cupos - @cantidad
+                    UPDATE Ventas.Tours SET cant_cupos = cant_cupos - @cantidad
                     WHERE id = @tour_id;
 
-                    /*
-                     Aquí hay una decisión de diseño importante.
-                    */
-
-                    -- Opción 1 (la más simple):
-                    -- Un registro representa una reserva grupal.
-                    EXEC Ventas.InsertarParticipaEnTour
-                        @tour_id,
-                        @ticket_id,
-                        @cantidad;
-
+                    -- Insertar participación
+                    EXEC Ventas.InsertarParticipaEnTour @tour_id, @ticket_id, @cantidad;
                     SET @todo_ok = 1;
                 END
             END
+            -- 1.4. Si el detalle de ticket está habilitado para la inserción
             IF @todo_ok = 1
             BEGIN
                 -- nro_detalle: 1 si es el primer detalle del ticket, o el siguiente correlativo
@@ -738,15 +700,13 @@ BEGIN
                 FROM Ventas.DetallesDeTicket
                 WHERE ticket_id = @ticket_id;
 
-                INSERT INTO Ventas.DetallesDeTicket (
-                    nro_detalle, ticket_id, tarifa_id, tipo_visitante_id, cantidad, precio_ud, subtotal
-                ) VALUES (
-                    @nro_detalle, @ticket_id, @tarifa_id, @tipo_visitante_id, @cantidad, @precio_base, @subtotal_calculado
-                );
-
+                INSERT INTO Ventas.DetallesDeTicket
+                    (nro_detalle, ticket_id, tarifa_id, tipo_visitante_id, cantidad, precio_ud, subtotal)
+                VALUES
+                    (@nro_detalle, @ticket_id, @tarifa_id, @tipo_visitante_id, @cantidad, @precio_base, @subtotal_calculado);
+                
                 UPDATE Ventas.TicketsDeVenta SET total += @subtotal_calculado WHERE id = @ticket_id;
             END
-
             COMMIT TRANSACTION;
         END TRY
         BEGIN CATCH

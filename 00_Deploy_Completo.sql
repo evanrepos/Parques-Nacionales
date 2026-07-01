@@ -90,7 +90,7 @@ SELECT * FROM RRHH.AsignacionesDeGuias
 
 OPEN SYMMETRIC KEY SK_Datos_Sensibles_RRHH
 DECRYPTION BY CERTIFICATE CertificadoParques
-/*
+
 SELECT 
 	id,
 	CONVERT(CHAR(11), DECRYPTBYKEY(cuil)),
@@ -126,7 +126,7 @@ SELECT
 	f_egreso,
 	CONVERT(VARCHAR(200), DECRYPTBYKEY(motivo_egreso))
 FROM RRHH.AsignacionesDeGuias
-*/
+
 CLOSE SYMMETRIC KEY SK_Datos_Sensibles_RRHH
 
 SELECT * FROM RRHH.AutorizacionesDeGuias

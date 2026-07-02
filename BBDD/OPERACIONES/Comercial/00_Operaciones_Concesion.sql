@@ -192,21 +192,34 @@ BEGIN
     --Si todo salió bien, se generaran las cuotas canon para la concesión.
     ELSE
     BEGIN
-        DECLARE @meses INT = 
-        CASE 
-            WHEN (DATEDIFF(month, @fecha_inicio, @fecha_fin) <= 0) THEN 1 -- Si son días, 1 mes.
-            ELSE DATEDIFF(month, @fecha_inicio, @fecha_fin)
-        END;
-        DECLARE @fechaVencimiento DATE = DATEADD(month, 1, @fecha_inicio); 
-        WHILE @meses > 0
-        BEGIN
-            INSERT INTO Comercial.CuotasCanon
-            (concesion_id,f_vencimiento)
-            VALUES
-            (@concesion_id,@fechaVencimiento)
-            set @meses = @meses - 1;
-            set @fechaVencimiento = DATEADD(month, 1, @fechaVencimiento);
-        END
+        BEGIN TRANSACTION
+        SAVE TRANSACTION ComienzoSP
+
+        BEGIN TRY
+            DECLARE @meses INT = 
+            CASE 
+                WHEN (DATEDIFF(month, @fecha_inicio, @fecha_fin) <= 0) THEN 1 -- Si son días, 1 mes.
+                ELSE DATEDIFF(month, @fecha_inicio, @fecha_fin)
+            END;
+            DECLARE @fechaVencimiento DATE = DATEADD(month, 1, @fecha_inicio); 
+            WHILE @meses > 0
+            BEGIN
+                INSERT INTO Comercial.CuotasCanon
+                (concesion_id,f_vencimiento)
+                VALUES
+                (@concesion_id,@fechaVencimiento)
+                set @meses = @meses - 1;
+                set @fechaVencimiento = DATEADD(month, 1, @fechaVencimiento);
+            END
+            COMMIT TRANSACTION
+        END TRY
+        BEGIN CATCH
+            IF @@TRANCOUNT > 0
+            BEGIN
+                ROLLBACK TRANSACTION ComienzoSP;
+            END;
+            ;THROW;
+        END CATCH
     END
 END;
 GO
@@ -318,15 +331,28 @@ BEGIN
     --Si todo salió bien, genera la concesión.
     ELSE
     BEGIN
-        INSERT INTO Comercial.Concesiones
-        (parque_id, empresa_id, tipo_actividad_id, f_firma, f_inicio_vigencia, f_fin_vigencia, canon_mensual)
-        VALUES
-        (@id_parque, @id_empresa, @id_actividad_tipo, @fecha_firma, @fecha_inicio, @fecha_fin, @canon);
+        BEGIN TRANSACTION
+        SAVE TRANSACTION ComienzoSP
 
-        -- SCOPE_IDENTITY() devuelve el último ID insertado!
-        SET @id = CAST(SCOPE_IDENTITY() AS INT);
+        BEGIN TRY
+            INSERT INTO Comercial.Concesiones
+            (parque_id, empresa_id, tipo_actividad_id, f_firma, f_inicio_vigencia, f_fin_vigencia, canon_mensual)
+            VALUES
+            (@id_parque, @id_empresa, @id_actividad_tipo, @fecha_firma, @fecha_inicio, @fecha_fin, @canon);
+
+            -- SCOPE_IDENTITY() devuelve el último ID insertado!
+            SET @id = CAST(SCOPE_IDENTITY() AS INT);
     
-        EXEC Comercial.CrearCuotasConcesion @id, @fecha_inicio, @fecha_fin;
+            EXEC Comercial.CrearCuotasConcesion @id, @fecha_inicio, @fecha_fin;
+            COMMIT TRANSACTION
+        END TRY
+        BEGIN CATCH
+            IF @@TRANCOUNT > 0
+            BEGIN
+                ROLLBACK TRANSACTION ComienzoSP;
+            END;
+            ;THROW;
+        END CATCH
     END
 END;
 GO
@@ -475,25 +501,38 @@ BEGIN
     --Si todo salió bien, actualiza los datos de la concesión y, en caso de haber actualizado las fechas, se regeneran las cuotas para esa concesión.
     ELSE
     BEGIN
-        UPDATE Comercial.Concesiones SET
-            parque_id = @id_parque,
-            empresa_id = @id_empresa,
-            tipo_actividad_id = @id_actividad_tipo,
-            f_firma = @fecha_firma,
-            f_inicio_vigencia = @fecha_inicio,
-            f_fin_vigencia = @fecha_fin,
-            canon_mensual = @canon
-        WHERE id = @id_concesion;
+        BEGIN TRANSACTION
+        SAVE TRANSACTION ComienzoSP
 
-        -- Si las fechas cambiaron, directamente regeneramos las cuotas.
-        IF (@fecha_inicio <> @fecha_inicio_original OR @fecha_fin_original <> @fecha_fin)
-        BEGIN
-            -- Eliminamos las cuotas y las regeneramos            
-            DELETE FROM Comercial.CuotasCanon 
-            WHERE concesion_id = @id_concesion;
+        BEGIN TRY
+                UPDATE Comercial.Concesiones SET
+                    parque_id = @id_parque,
+                    empresa_id = @id_empresa,
+                    tipo_actividad_id = @id_actividad_tipo,
+                    f_firma = @fecha_firma,
+                    f_inicio_vigencia = @fecha_inicio,
+                    f_fin_vigencia = @fecha_fin,
+                    canon_mensual = @canon
+                WHERE id = @id_concesion;
+
+                -- Si las fechas cambiaron, directamente regeneramos las cuotas.
+                IF (@fecha_inicio <> @fecha_inicio_original OR @fecha_fin_original <> @fecha_fin)
+                BEGIN
+                    -- Eliminamos las cuotas y las regeneramos            
+                    DELETE FROM Comercial.CuotasCanon 
+                    WHERE concesion_id = @id_concesion;
             
-            EXEC Comercial.CrearCuotasConcesion @id_concesion, @fecha_inicio, @fecha_fin;
-        END;
+                    EXEC Comercial.CrearCuotasConcesion @id_concesion, @fecha_inicio, @fecha_fin;
+                END;
+            COMMIT TRANSACTION
+        END TRY
+        BEGIN CATCH
+            IF @@TRANCOUNT > 0
+            BEGIN
+                ROLLBACK TRANSACTION ComienzoSP;
+            END;
+            ;THROW;
+        END CATCH
     END
 END;
 GO
@@ -624,23 +663,36 @@ BEGIN
 
     --Si todo salió bien, se confirma el pago.
     ELSE
-    BEGIN    
-        --Si el número de cuota ingresado es nulo, se busca la cuota con los parámetros de búsqueda ingresados.
-        IF @id_cuota IS NULL
-        BEGIN
-            SELECT @id_cuota = id FROM Comercial.CuotasCanon WHERE f_vencimiento = @fecha_vencimiento AND concesion_id = @id_concesion AND f_pago IS NULL;
-        END
+    BEGIN
+        BEGIN TRANSACTION
+        SAVE TRANSACTION ComienzoSP
 
-        --Si la fecha de pago es nula, se ingresa la fecha actual
-        IF @fecha_pago IS NULL
-        BEGIN 
-            SET @fecha_pago = GETDATE();
-        END   
+        BEGIN TRY
+            --Si el número de cuota ingresado es nulo, se busca la cuota con los parámetros de búsqueda ingresados.
+            IF @id_cuota IS NULL
+            BEGIN
+                SELECT @id_cuota = id FROM Comercial.CuotasCanon WHERE f_vencimiento = @fecha_vencimiento AND concesion_id = @id_concesion AND f_pago IS NULL;
+            END
+
+            --Si la fecha de pago es nula, se ingresa la fecha actual
+            IF @fecha_pago IS NULL
+            BEGIN 
+                SET @fecha_pago = GETDATE();
+            END   
         
-        --Se actualiza la cuota.
-        UPDATE Comercial.CuotasCanon 
-        SET forma_pago_id = @id_metodo_pago, f_pago = @fecha_pago
-        WHERE id = @id_cuota;
+            --Se actualiza la cuota.
+            UPDATE Comercial.CuotasCanon 
+            SET forma_pago_id = @id_metodo_pago, f_pago = @fecha_pago
+            WHERE id = @id_cuota;
+            COMMIT TRANSACTION
+        END TRY
+        BEGIN CATCH
+            IF @@TRANCOUNT > 0
+            BEGIN
+                ROLLBACK TRANSACTION ComienzoSP;
+            END;
+            ;THROW;
+        END CATCH
     END
 END
 GO

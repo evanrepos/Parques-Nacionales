@@ -9,7 +9,7 @@ BEGIN
         id INT PRIMARY KEY IDENTITY(1,1),
         mes TINYINT NOT NULL,
         dia TINYINT NOT NULL,
-        nombre VARCHAR(50)
+        nombre VARCHAR(100)
     );
 END
 GO
@@ -55,10 +55,10 @@ GO
 
 IF OBJECT_ID('Administracion.TiposDeParque', 'U') IS NULL
 BEGIN
-CREATE TABLE Administracion.TiposDeParque (
-	id INT PRIMARY KEY IDENTITY(1,1),
-	descripcion VARCHAR(100) NOT NULL
-);
+    CREATE TABLE Administracion.TiposDeParque (
+	    id INT PRIMARY KEY IDENTITY(1,1),
+	    descripcion VARCHAR(100) NOT NULL
+    );
 END
 GO
 
@@ -78,10 +78,11 @@ BEGIN
     	id INT PRIMARY KEY IDENTITY(1,1),
     	tipo_parque_id INT NOT NULL,
     	provincia_id INT NOT NULL,
-    	direccion VARCHAR(150) NOT NULL,
     	nombre VARCHAR(100) NOT NULL,
     	superficie_km_2 INT NOT NULL,
-        año_creacion SMALLINT NOT NULL
+        año_creacion SMALLINT NOT NULL,
+    	latitud VARCHAR(50) NOT NULL,
+    	longitud VARCHAR(50) NOT NULL
     );
 END
 GO
@@ -106,7 +107,7 @@ BEGIN
         id INT PRIMARY KEY IDENTITY(1, 1),
         parque_id INT NOT NULL,
         tipo_articulo CHAR(1) NOT NULL,
-        tipo_ajuste CHAR(1) NOT NULL, -- F: Fecha, V: Visitante, TE: Tipo Entrada
+        tipo_ajuste CHAR(2) NOT NULL, -- F: Fecha, V: Visitante, TE: Tipo Entrada
         descripcion VARCHAR(30) NOT NULL,
         porcentaje SMALLINT NOT NULL
     );

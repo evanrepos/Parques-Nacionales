@@ -30,6 +30,8 @@ Desactivar cuando todo haya terminado.
 :r E:\evanrepos\Parques-Nacionales\BBDD\OPERACIONES\Ventas\02_Importacion_Ventas.sql
 
 :r E:\evanrepos\Parques-Nacionales\Reportes\00_Generacion_Reportes.sql
+
+!!ECHO :r E:\evanrepos\Parques-Nacionales\Seguridad\02_Backups.sql
 /*
 
 */

@@ -57,11 +57,11 @@ BEGIN
         WHEN @descripcion IS NULL
         THEN 1 ELSE 0 END;
 
-    DECLARE @mensaje1 VARCHAR(100) = 'La descripción ingresada es nula.';
+    DECLARE @mensaje1 VARCHAR(100) = 'La descripción ingresada no puede ser nula.';
 
     --2. Si ya existe una forma de pago con la descripcion ingresada
     DECLARE @condicion2 BIT = CASE 
-        WHEN EXISTS (SELECT 1 FROM Administracion.FormasDePago WHERE descripcion = @descripcion)
+        WHEN EXISTS (SELECT 1 FROM Administracion.FormasDePago WHERE ISNULL(descripcion, '') = ISNULL(@descripcion, ''))
         THEN 1 ELSE 0 END;
 
     DECLARE @mensaje2 VARCHAR(100) = 'La forma de pago ingresada ya existe.';
@@ -94,16 +94,16 @@ BEGIN
     SET NOCOUNT ON;
 
     --Condiciones de falla
-    --1. Si la descripcion ingresada es nula o el código iso es nulo.
+    --1. Si la descripcion ingresada es nula o el código ISO es nulo.
     DECLARE @condicion1 BIT = CASE 
         WHEN @descripcion IS NULL OR @codigo_iso IS NULL
         THEN 1 ELSE 0 END;
 
     DECLARE @mensaje1 VARCHAR(100) = 'La descripción o el código iso no pueden ser nulos.';
 
-    --2. Si ...
+    --2. Si ya existe una divisa con el código ISO o la descripcion ingresada
     DECLARE @condicion2 BIT = CASE 
-        WHEN EXISTS (SELECT 1 FROM Administracion.Divisas WHERE codigo_iso = @codigo_iso OR descripcion = @descripcion)
+        WHEN EXISTS (SELECT 1 FROM Administracion.Divisas WHERE codigo_iso = @codigo_iso OR ISNULL(descripcion, '') = ISNULL(@descripcion, ''))
         THEN 1 ELSE 0 END;
 
     DECLARE @mensaje2 VARCHAR(100) = 'La divisa ingresada ya existe.';
@@ -140,11 +140,11 @@ BEGIN
         WHEN @descripcion IS NULL
         THEN 1 ELSE 0 END;
 
-    DECLARE @mensaje1 VARCHAR(100) = 'La descripción ingresada es nula.';
+    DECLARE @mensaje1 VARCHAR(100) = 'La descripción ingresada no puede ser nula.';
 
     --2. Si ya existe un tipo de fecha con la descripcion ingresada
     DECLARE @condicion2 BIT = CASE 
-        WHEN EXISTS (SELECT 1 FROM Administracion.TiposDeFecha WHERE descripcion = @descripcion)
+        WHEN EXISTS (SELECT 1 FROM Administracion.TiposDeFecha WHERE ISNULL(descripcion, '') = ISNULL(@descripcion, ''))
         THEN 1 ELSE 0 END;
 
     DECLARE @mensaje2 VARCHAR(100) = 'El tipo de fecha ingresado ya existe.';
@@ -235,11 +235,11 @@ BEGIN
         WHEN @descripcion IS NULL
         THEN 1 ELSE 0 END;
 
-    DECLARE @mensaje1 VARCHAR(100) = 'La descripción ingresada es nula.';
+    DECLARE @mensaje1 VARCHAR(100) = 'La descripción ingresada no puede ser nula.';
 
     --2. Si ya existe un tipo de visitante con la descripcion ingresada
     DECLARE @condicion2 BIT = CASE 
-        WHEN EXISTS (SELECT 1 FROM Administracion.TiposDeVisitante WHERE descripcion = @descripcion)
+        WHEN EXISTS (SELECT 1 FROM Administracion.TiposDeVisitante WHERE ISNULL(descripcion, '') = ISNULL(@descripcion, ''))
         THEN 1 ELSE 0 END;
 
     DECLARE @mensaje2 VARCHAR(100) = 'El tipo de fecha ingresado ya existe.';
@@ -276,11 +276,11 @@ BEGIN
         WHEN @descripcion IS NULL
         THEN 1 ELSE 0 END;
 
-    DECLARE @mensaje1 VARCHAR(100) = 'La descripción ingresada es nula.';
+    DECLARE @mensaje1 VARCHAR(100) = 'La descripción ingresada no puede ser nula.';
 
     --2. Si ya existe un tipo de parque con la descripcion ingresada
     DECLARE @condicion2 BIT = CASE 
-        WHEN EXISTS (SELECT 1 FROM Administracion.TiposDeParque WHERE descripcion = @descripcion)
+        WHEN EXISTS (SELECT 1 FROM Administracion.TiposDeParque WHERE ISNULL(descripcion, '') = ISNULL(@descripcion, ''))
         THEN 1 ELSE 0 END;
 
     DECLARE @mensaje2 VARCHAR(100) = 'El tipo de parque ingresado ya existe.';
@@ -317,11 +317,11 @@ BEGIN
         WHEN @descripcion IS NULL
         THEN 1 ELSE 0 END;
 
-    DECLARE @mensaje1 VARCHAR(100) = 'La descripción ingresada es nula.';
+    DECLARE @mensaje1 VARCHAR(100) = 'La descripción ingresada no puede ser nula.';
 
     --2. Si ya existe una provincia con la descripcion ingresada
     DECLARE @condicion2 BIT = CASE 
-        WHEN EXISTS (SELECT 1 FROM Administracion.Provincias WHERE descripcion = @descripcion)
+        WHEN EXISTS (SELECT 1 FROM Administracion.Provincias WHERE ISNULL(descripcion, '') = ISNULL(@descripcion, ''))
         THEN 1 ELSE 0 END;
 
     DECLARE @mensaje2 VARCHAR(100) = 'La provincia ingresada ya existe.';
@@ -349,10 +349,11 @@ GO
 CREATE OR ALTER PROCEDURE Administracion.IngresarParques
     @tipo_parque_id INT = NULL,
 	@provincia_id INT = NULL,
-	@direccion VARCHAR(150) = NULL,
 	@nombre VARCHAR(100) = NULL,
 	@superficie INT = NULL,
-    @año_creacion SMALLINT = NULL
+    @año_creacion SMALLINT = NULL,
+	@latitud VARCHAR(50) = NULL,
+	@longitud VARCHAR(50) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -419,8 +420,8 @@ BEGIN
     --Si todo salió bien, se inserta el parque.
     ELSE
     BEGIN
-        INSERT INTO Administracion.Parques (tipo_parque_id, provincia_id, direccion, nombre, superficie_km_2, año_creacion) VALUES
-            (@tipo_parque_id, @provincia_id, @direccion, @nombre, @superficie, @año_creacion)
+        INSERT INTO Administracion.Parques (tipo_parque_id, provincia_id, nombre, superficie_km_2, año_creacion, latitud, longitud) VALUES
+            (@tipo_parque_id, @provincia_id, @nombre, @superficie, @año_creacion, @latitud, @longitud)
     END
 END;
 GO
@@ -474,7 +475,10 @@ BEGIN
 
     --6. Si existe un artículo con la descripción, el parque, o el tipo de artículo ingresados
     DECLARE @condicion6 BIT = CASE 
-        WHEN EXISTS (SELECT 1 FROM Administracion.TarifasDeArticulo WHERE descripcion = @descripcion AND parque_id = @parque_id AND tipo_articulo = @tipo_articulo)
+        WHEN EXISTS (SELECT 1 FROM Administracion.TarifasDeArticulo WHERE 
+            ISNULL(descripcion, '') = ISNULL(@descripcion, '') AND 
+            parque_id = @parque_id AND 
+            tipo_articulo = @tipo_articulo)
         THEN 1 ELSE 0 END;
 
     DECLARE @mensaje6 VARCHAR(100) = 'El artículo ya existe.';
@@ -507,7 +511,7 @@ GO
 CREATE OR ALTER PROCEDURE Administracion.IngresarAjustes
     @parque_id INT = NULL,
     @tipo_articulo CHAR(1) = NULL,
-    @tipo_ajuste CHAR(1) = NULL,
+    @tipo_ajuste CHAR(2) = NULL,
     @descripcion VARCHAR(30) = NULL,
     @porcentaje SMALLINT = NULL
 AS
@@ -545,7 +549,11 @@ BEGIN
         
     --5. Si ya existe un ajuste con el parque y la descripción ingresadas
     DECLARE @condicion5 BIT = CASE 
-        WHEN EXISTS (SELECT 1 FROM Administracion.Ajustes WHERE parque_id = @parque_id AND descripcion = @descripcion)
+        WHEN EXISTS (SELECT 1 FROM Administracion.Ajustes 
+            WHERE parque_id = @parque_id AND 
+                tipo_articulo = @tipo_articulo AND
+                tipo_ajuste = @tipo_ajuste AND
+                ISNULL(descripcion, '') = ISNULL(@descripcion, ''))
         THEN 1 ELSE 0 END;
 
     DECLARE @mensaje5 VARCHAR(100) = 'Ya existe un ajuste con las características ingresadas.';
@@ -640,7 +648,9 @@ BEGIN
     DECLARE @mensaje1 VARCHAR(100) = 'Los parámetros de búsqueda y de cambio no pueden ser nulos.';
 
     --2. Si se ingresa solo la descripción, pero no existe una forma de pago con esa descripción
-    DECLARE @idRealFDP INT = (SELECT id FROM Administracion.FormasDePago WHERE @id = id OR @descripcion_vieja = descripcion);
+    DECLARE @idRealFDP INT;
+        SELECT @idRealFDP = id FROM Administracion.FormasDePago 
+        WHERE (@id IS NULL OR id = @id) AND (@descripcion_vieja IS NULL OR descripcion = @descripcion_vieja);
     DECLARE @condicion2 BIT = CASE 
         WHEN @idRealFDP IS NULL
         THEN 1 ELSE 0 END;
@@ -687,7 +697,11 @@ BEGIN
     DECLARE @mensaje1 VARCHAR(100) = 'Los parámetros de búsqueda y de cambio no pueden ser nulos.';
 
     --2. Si se ingresa solo la descripción, pero no existe una forma de pago con esa descripción
-    DECLARE @idRealDiv INT = (SELECT id FROM Administracion.Divisas WHERE @id = id OR @codigo_iso = codigo_iso OR @descripcion_vieja = descripcion);
+    DECLARE @idRealDiv INT;
+    SELECT @idRealDiv = id FROM Administracion.Divisas 
+        WHERE (@id IS NULL OR id = @id) AND 
+        (@codigo_iso IS NULL OR codigo_iso = @codigo_iso) AND 
+        (@descripcion_vieja IS NULL OR descripcion = @descripcion_vieja);
     DECLARE @condicion2 BIT = CASE 
         WHEN @idRealDiv IS NULL
         THEN 1 ELSE 0 END;
@@ -734,7 +748,9 @@ BEGIN
 
     --2. Si la divisa ingresada es nula o inexistente
     DECLARE @condicion2 BIT = CASE 
-        WHEN @codigo_iso IS NULL OR @divisa_id IS NULL OR NOT EXISTS (SELECT 1 FROM Administracion.Divisas WHERE id = @divisa_id)
+        WHEN @codigo_iso IS NULL 
+            OR @divisa_id IS NULL OR 
+            NOT EXISTS (SELECT 1 FROM Administracion.Divisas WHERE id = @divisa_id)
         THEN 1 ELSE 0 END;
 
     DECLARE @mensaje2 VARCHAR(100) = 'El código ISO y la descripción no pueden ser nulos, o inexistentes.';
@@ -814,7 +830,9 @@ BEGIN
     DECLARE @mensaje1 VARCHAR(100) = 'Los parámetros de búsqueda y de cambio no pueden ser nulos.';
 
     --2. Si se ingresa solo la descripción, pero no existe un tipo de fecha con esa descripción
-    DECLARE @idRealTDF INT = (SELECT id FROM Administracion.TiposDeFecha WHERE @id = id OR @descripcion_vieja = descripcion);
+    DECLARE @idRealTDF INT;
+        SELECT @idRealTDF = id FROM Administracion.TiposDeFecha 
+        WHERE (@id IS NULL OR id = @id) AND (@descripcion_vieja IS NULL OR descripcion = @descripcion_vieja);
     DECLARE @condicion2 BIT = CASE 
         WHEN @idRealTDF IS NULL
         THEN 1 ELSE 0 END;
@@ -860,7 +878,9 @@ BEGIN
     DECLARE @mensaje1 VARCHAR(100) = 'Los parámetros de búsqueda y de cambio no pueden ser nulos.';
 
     --2. Si se ingresa solo la descripción, pero no existe una forma de pago con esa descripción
-    DECLARE @idRealTDV INT = (SELECT id FROM Administracion.TiposDeVisitante WHERE @id = id OR @descripcion_vieja = descripcion);
+    DECLARE @idRealTDV INT;
+        SELECT @idRealTDV = id FROM Administracion.TiposDeVisitante 
+        WHERE (@id IS NULL OR id = @id) AND (@descripcion_vieja IS NULL OR descripcion = @descripcion_vieja);
     DECLARE @condicion2 BIT = CASE 
         WHEN @idRealTDV IS NULL
         THEN 1 ELSE 0 END;
@@ -906,7 +926,9 @@ BEGIN
     DECLARE @mensaje1 VARCHAR(100) = 'Los parámetros de búsqueda y de cambio no pueden ser nulos.';
 
     --2. Si se ingresa solo la descripción, pero no existe un tipo de parque con esa descripción
-    DECLARE @idRealTDP INT = (SELECT id FROM Administracion.TiposDeParque WHERE @id = id OR @descripcion_vieja = descripcion);
+    DECLARE @idRealTDP INT;
+        SELECT @idRealTDP = id FROM Administracion.TiposDeParque 
+        WHERE (@id IS NULL OR id = @id) AND (@descripcion_vieja IS NULL OR descripcion = @descripcion_vieja);
     DECLARE @condicion2 BIT = CASE 
         WHEN @idRealTDP IS NULL
         THEN 1 ELSE 0 END;
@@ -952,7 +974,9 @@ BEGIN
     DECLARE @mensaje1 VARCHAR(100) = 'Los parámetros de búsqueda y de cambio no pueden ser nulos.';
 
     --2. Si se ingresa solo la descripción, pero no existe una provincia con esa descripción
-    DECLARE @idRealProv INT = (SELECT id FROM Administracion.Provincias WHERE @id = id OR @descripcion_vieja = descripcion);
+    DECLARE @idRealProv INT;
+        SELECT @idRealProv = id FROM Administracion.Provincias
+        WHERE (@id IS NULL OR id = @id) AND (@descripcion_vieja IS NULL OR descripcion = @descripcion_vieja);
     DECLARE @condicion2 BIT = CASE 
         WHEN @idRealProv IS NULL
         THEN 1 ELSE 0 END;
@@ -986,12 +1010,14 @@ CREATE OR ALTER PROCEDURE Administracion.ActualizarParques
     @id INT = NULL,
 	@tipo_parque_id INT = NULL,
 	@provincia_id INT = NULL,
-    @direccion VARCHAR(150) = NULL,
 	@nombre VARCHAR(100) = NULL,
 	@superficie_km_2 INT = NULL,
     @año_creacion SMALLINT = NULL,
+    @latitud VARCHAR(50) = NULL,
+    @longitud VARCHAR(50) = NULL,
     --Parámetros de cambio
-    @direccion_nueva VARCHAR(150) = NULL,
+    @latitud_nueva VARCHAR(50) = NULL,
+    @longitud_nueva VARCHAR(50) = NULL,
 	@nombre_nuevo VARCHAR(100) = NULL,
 	@superficie_nueva INT = NULL,
     @año_creacion_nuevo SMALLINT = NULL
@@ -1002,21 +1028,26 @@ BEGIN
     --Condiciones de falla
     --1. Si todos los parámetros de búsqueda, o los parámetros de cambio, son nulos
     DECLARE @condicion1 BIT = CASE 
-        WHEN (@id IS NULL AND @tipo_parque_id IS NULL AND @provincia_id IS NULL AND @direccion IS NULL AND @nombre IS NULL AND @superficie_km_2 IS NULL AND @año_creacion IS NULL) 
-            OR (@direccion_nueva IS NULL AND @nombre_nuevo IS NULL AND @superficie_nueva IS NULL AND @año_creacion_nuevo IS NULL)
+        WHEN (@id IS NULL AND @tipo_parque_id IS NULL AND @provincia_id IS NULL AND @latitud IS NULL AND @longitud IS NULL AND @nombre IS NULL AND @superficie_km_2 IS NULL AND @año_creacion IS NULL) 
+            OR (@latitud_nueva IS NULL AND @longitud_nueva IS NULL AND @nombre_nuevo IS NULL AND @superficie_nueva IS NULL AND @año_creacion_nuevo IS NULL)
         THEN 1 ELSE 0 END;
 
     DECLARE @mensaje1 VARCHAR(100) = 'Los parámetros de búsqueda y de cambio no pueden ser nulos.';
 
     --2. Si se ingresa solo la descripción, pero no existe una provincia con esa descripción
-    DECLARE @idRealParque INT = (SELECT id FROM Administracion.Parques 
-            WHERE @id = id OR @tipo_parque_id = tipo_parque_id OR @provincia_id = provincia_id 
-                           OR @direccion = direccion OR @nombre = nombre OR @superficie_km_2 = superficie_km_2 
-                           OR @año_creacion = año_creacion)
+    DECLARE @idRealParque INT;
+    SELECT @idRealParque = id FROM Administracion.Parques 
+    WHERE (@id IS NULL OR id = @id)
+      AND (@tipo_parque_id IS NULL OR tipo_parque_id = @tipo_parque_id)
+      AND (@provincia_id IS NULL OR provincia_id = @provincia_id)
+      AND (@latitud IS NULL OR latitud = @latitud)
+      AND (@longitud IS NULL OR longitud = @longitud)
+      AND (@nombre IS NULL OR nombre = @nombre)
+      AND (@superficie_km_2 IS NULL OR superficie_km_2 = @superficie_km_2)
+      AND (@año_creacion IS NULL OR año_creacion = @año_creacion);
     DECLARE @condicion2 BIT = CASE 
         WHEN @idRealParque IS NULL
         THEN 1 ELSE 0 END;
-
     DECLARE @mensaje2 VARCHAR(100) = 'No existe un parque con las características indicadas.';
 
     --Generación del mensaje de error.
@@ -1035,7 +1066,8 @@ BEGIN
     ELSE
     BEGIN
         UPDATE Administracion.Parques 
-        SET       direccion = ISNULL(@direccion_nueva, direccion),
+        SET         latitud = ISNULL(@latitud_nueva, latitud),
+                   longitud = ISNULL(@longitud_nueva, longitud),
                      nombre = ISNULL(@nombre_nuevo, nombre),
             superficie_km_2 = ISNULL(@superficie_nueva, superficie_km_2),
                año_creacion = ISNULL(@año_creacion_nuevo, año_creacion)
@@ -1045,20 +1077,18 @@ END;
 GO
 
 CREATE OR ALTER PROCEDURE Administracion.ActualizarTarifasDeArticulo
-    --Parámetros de búsqueda
-    @id INT = NULL,
-    @parque_id INT = NULL,
+    @id INT = NULL, 
+    @parque_id INT = NULL, 
     @tipo_articulo CHAR(1) = NULL,
-    @descripcion VARCHAR(50) = NULL,
-    @duracion INT = NULL,
-    @cupo INT = NULL,
-    @precio DECIMAL(10, 2) = NULL,
-    --Parámetros de cambio
-    @tipo_articulo_nuevo CHAR(1) = NULL,
+    @descripcion VARCHAR(50) = NULL, 
+    @duracion INT = NULL, 
+    @cupo INT = NULL, 
+    @precio DECIMAL(10,2) = NULL,
+    @tipo_articulo_nuevo CHAR(1) = NULL, 
     @descripcion_nueva VARCHAR(50) = NULL,
-    @duracion_nueva INT = NULL,
-    @cupo_nuevo INT = NULL,
-    @precio_nuevo DECIMAL(10, 2) = NULL
+    @duracion_nueva INT = NULL, 
+    @cupo_nuevo INT = NULL, 
+    @precio_nuevo DECIMAL(10,2) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -1067,43 +1097,39 @@ BEGIN
     --1. Si todos los parámetros de búsqueda, o los parámetros de cambio, son nulos
     DECLARE @condicion1 BIT = CASE 
         WHEN (@id IS NULL AND @parque_id IS NULL AND @tipo_articulo IS NULL AND @descripcion IS NULL AND @duracion IS NULL AND @cupo IS NULL AND @precio IS NULL) 
-            OR (@tipo_articulo_nuevo IS NULL AND @descripcion_nueva IS NULL  AND @duracion_nueva IS NULL AND @cupo_nuevo IS NULL AND @precio_nuevo IS NULL)
+            OR (@tipo_articulo_nuevo IS NULL AND @descripcion_nueva IS NULL AND @duracion_nueva IS NULL AND @cupo_nuevo IS NULL AND @precio_nuevo IS NULL)
         THEN 1 ELSE 0 END;
-
     DECLARE @mensaje1 VARCHAR(100) = 'Los parámetros de búsqueda y de cambio no pueden ser nulos.';
 
-    --2. Si se ingresa solo la descripción, pero no existe una provincia con esa descripción
-    DECLARE @idRealTarifa INT
+    DECLARE @idRealTarifa INT;
     SELECT @idRealTarifa = id FROM Administracion.TarifasDeArticulo 
-        WHERE @id = id OR @parque_id = parque_id OR @tipo_articulo = tipo_articulo OR @descripcion = descripcion OR @duracion = duracion OR @cupo = cupo OR @precio = precio
+    WHERE (@id IS NULL OR id = @id)
+      AND (@parque_id IS NULL OR parque_id = @parque_id)
+      AND (@tipo_articulo IS NULL OR tipo_articulo = @tipo_articulo)
+      AND (@descripcion IS NULL OR descripcion = @descripcion)
+      AND (@duracion IS NULL OR duracion = @duracion)
+      AND (@cupo IS NULL OR cupo = @cupo)
+      AND (@precio IS NULL OR precio = @precio);
 
-    DECLARE @condicion2 BIT = CASE 
-        WHEN @idRealTarifa IS NULL
-        THEN 1 ELSE 0 END;
-
+    --2. Si la tarifa con los parámetros ingresados no existe
+    DECLARE @condicion2 BIT = CASE WHEN @idRealTarifa IS NULL THEN 1 ELSE 0 END;
     DECLARE @mensaje2 VARCHAR(100) = 'No existe una tarifa con las características indicadas.';
 
-    --Generación del mensaje de error.
     DECLARE @mensajeDeError VARCHAR(MAX) = CONCAT_WS(CHAR(10),
         IIF(@condicion1 = 1, @mensaje1, NULL),
-        IIF(@condicion2 = 1, @mensaje2, NULL)
-        );
+        IIF(@condicion2 = 1, @mensaje2, NULL));
 
-    --Si falló, muestra mensaje de error, no hace cambios.
     IF (LEN(@mensajeDeError) > 0)
-    BEGIN
         RAISERROR(@mensajeDeError, 1, 1);
-    END;
-
-    --Si todo salió bien, se actualiza la provincia.
     ELSE
     BEGIN
         UPDATE Administracion.TarifasDeArticulo 
         SET tipo_articulo = ISNULL(@tipo_articulo_nuevo, tipo_articulo),
-           descripcion    = ISNULL(@descripcion_nueva, descripcion),
-           duracion       = ISNULL(@duracion_nueva, duracion),
-           cupo           = ISNULL(@cupo_nuevo, cupo),
-           precio         = ISNULL(@precio_nuevo, precio)
+            descripcion    = ISNULL(@descripcion_nueva, descripcion),
+            duracion       = ISNULL(@duracion_nueva, duracion),
+            cupo           = ISNULL(@cupo_nuevo, cupo),
+            precio         = ISNULL(@precio_nuevo, precio)
+        WHERE id = @idRealTarifa
     END
 END;
 GO
@@ -1135,10 +1161,14 @@ BEGIN
     DECLARE @mensaje1 VARCHAR(100) = 'Los parámetros de búsqueda y de cambio no pueden ser nulos.';
 
     --2. Si se ingresa solo la descripción, pero no existe una provincia con esa descripción
-    DECLARE @idRealAjuste INT
+    DECLARE @idRealAjuste INT;
     SELECT @idRealAjuste = id FROM Administracion.Ajustes 
-        WHERE id = @id OR parque_id = @parque_id OR tipo_articulo = @tipo_articulo OR tipo_ajuste = @tipo_ajuste OR descripcion = @descripcion OR porcentaje = @porcentaje
-
+    WHERE (@id IS NULL OR id = @id)
+      AND (@parque_id IS NULL OR parque_id = @parque_id)
+      AND (@tipo_articulo IS NULL OR tipo_articulo = @tipo_articulo)
+      AND (@tipo_ajuste IS NULL OR tipo_ajuste = @tipo_ajuste)
+      AND (@descripcion IS NULL OR descripcion = @descripcion)
+      AND (@porcentaje IS NULL OR porcentaje = @porcentaje);
     DECLARE @condicion2 BIT = CASE 
         WHEN @idRealAjuste IS NULL
         THEN 1 ELSE 0 END;
@@ -1171,49 +1201,41 @@ END;
 GO
 
 CREATE OR ALTER PROCEDURE Administracion.ActualizarPuntosDeVenta
-    @id INT = NULL,
+    @id SMALLINT = NULL, 
     @parque_id INT = NULL,
-    @descripcion_vieja VARCHAR(100) = NULL,
+    @descripcion_vieja VARCHAR(100) = NULL, 
     @descripcion_nueva VARCHAR(100) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
-    
+
     --Condiciones de falla
-    --1. Si la forma de pago y la descripción son nulas, o la descripción nueva a ingresar es nula
+    --1. Si los parámetros de búsqueda o de cambio son nulos
     DECLARE @condicion1 BIT = CASE 
         WHEN (@id IS NULL AND @parque_id IS NULL AND @descripcion_vieja IS NULL) OR @descripcion_nueva IS NULL
         THEN 1 ELSE 0 END;
-
     DECLARE @mensaje1 VARCHAR(100) = 'Los parámetros de búsqueda y de cambio no pueden ser nulos.';
 
-    --2. Si se ingresa solo la descripción, pero no existe un punto de venta con esa descripción
-    DECLARE @idRealPDV INT = (SELECT id FROM Administracion.PuntosDeVenta WHERE @parque_id = parque_id OR @descripcion_vieja = descripcion);
-    DECLARE @condicion2 BIT = CASE 
-        WHEN @idRealPDV IS NULL
-        THEN 1 ELSE 0 END;
+    DECLARE @idRealPDV SMALLINT, @parqueRealPDV INT;
+    SELECT TOP 1 @idRealPDV = id, @parqueRealPDV = parque_id
+    FROM Administracion.PuntosDeVenta
+    WHERE (@id IS NULL OR id = @id)
+      AND (@parque_id IS NULL OR parque_id = @parque_id)
+      AND (@descripcion_vieja IS NULL OR descripcion = @descripcion_vieja);
 
-    DECLARE @mensaje2 VARCHAR(100) = 'No existe una provincia con las características indicadas.';
+    --2. Si no existe un punto de venta con los identificadores ingresados
+    DECLARE @condicion2 BIT = CASE WHEN @idRealPDV IS NULL THEN 1 ELSE 0 END;
+    DECLARE @mensaje2 VARCHAR(100) = 'No existe un punto de venta con las características indicadas.';
 
-    --Generación del mensaje de error.
     DECLARE @mensajeDeError VARCHAR(MAX) = CONCAT_WS(CHAR(10),
-        IIF(@condicion1 = 1, @mensaje1, NULL),
-        IIF(@condicion2 = 1, @mensaje2, NULL)
-        );
+        IIF(@condicion1 = 1, @mensaje1, NULL), IIF(@condicion2 = 1, @mensaje2, NULL));
 
-    --Si falló, muestra mensaje de error, no hace cambios.
     IF (LEN(@mensajeDeError) > 0)
-    BEGIN
         RAISERROR(@mensajeDeError, 1, 1);
-    END;
-
-    --Si todo salió bien, se actualiza la provincia.
     ELSE
-    BEGIN
         UPDATE Administracion.PuntosDeVenta 
         SET descripcion = ISNULL(@descripcion_nueva, descripcion) 
-        WHERE id = @idRealPDV
-    END
+        WHERE id = @idRealPDV AND parque_id = @parqueRealPDV
 END;
 GO
 
@@ -1488,10 +1510,11 @@ CREATE OR ALTER PROCEDURE Administracion.EliminarParques
     @id INT = NULL,
 	@tipo_parque_id INT = NULL,
 	@provincia_id INT = NULL,
-    @direccion VARCHAR(150) = NULL,
 	@nombre VARCHAR(100) = NULL,
 	@superficie_km_2 INT = NULL,
-    @año_creacion SMALLINT = NULL
+    @año_creacion SMALLINT = NULL,
+    @latitud VARCHAR(50) = NULL,
+    @longitud VARCHAR(50) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -1499,7 +1522,7 @@ BEGIN
     --Condiciones de falla
     --1. Si todos los parámetros de búsqueda son nulos
     DECLARE @condicion1 BIT = CASE 
-        WHEN @id IS NULL AND @tipo_parque_id IS NULL AND @provincia_id IS NULL AND @direccion IS NULL AND @nombre IS NULL AND @superficie_km_2 IS NULL AND @año_creacion IS NULL
+        WHEN @id IS NULL AND @tipo_parque_id IS NULL AND @provincia_id IS NULL AND @latitud IS NULL AND @longitud IS NULL AND @nombre IS NULL AND @superficie_km_2 IS NULL AND @año_creacion IS NULL
         THEN 1 ELSE 0 END;
 
     DECLARE @mensaje1 VARCHAR(100) = 'Los parámetros de búsqueda no pueden ser nulos.';
@@ -1507,7 +1530,7 @@ BEGIN
     --2. Si no existe un parque con las características indicadas
     DECLARE @idRealParque INT = (SELECT id FROM Administracion.Parques 
         WHERE @id = id OR @tipo_parque_id = tipo_parque_id OR @provincia_id = provincia_id 
-                       OR @direccion = direccion OR @nombre = nombre OR @superficie_km_2 = superficie_km_2 
+                       OR @latitud = latitud OR @longitud = longitud OR @nombre = nombre OR @superficie_km_2 = superficie_km_2 
                        OR @año_creacion = año_creacion);
     DECLARE @condicion2 BIT = CASE 
         WHEN @idRealParque IS NULL
@@ -1606,8 +1629,14 @@ BEGIN
     DECLARE @mensaje1 VARCHAR(100) = 'Los parámetros de búsqueda no pueden ser nulos.';
 
     --2. Si no existe un ajuste con las características indicadas
-    DECLARE @idRealAjuste INT = (SELECT id FROM Administracion.Ajustes 
-        WHERE id = @id OR parque_id = @parque_id OR tipo_articulo = @tipo_articulo OR tipo_ajuste = @tipo_ajuste OR descripcion = @descripcion OR porcentaje = @porcentaje);
+    DECLARE @idRealAjuste INT;
+    SELECT @idRealAjuste = id FROM Administracion.Ajustes 
+    WHERE (@id IS NULL OR id = @id)
+      AND (@parque_id IS NULL OR parque_id = @parque_id)
+      AND (@tipo_articulo IS NULL OR tipo_articulo = @tipo_articulo)
+      AND (@tipo_ajuste IS NULL OR tipo_ajuste = @tipo_ajuste)
+      AND (@descripcion IS NULL OR descripcion = @descripcion)
+      AND (@porcentaje IS NULL OR porcentaje = @porcentaje);
     DECLARE @condicion2 BIT = CASE 
         WHEN @idRealAjuste IS NULL
         THEN 1 ELSE 0 END;
@@ -1637,47 +1666,38 @@ GO
 
 
 CREATE OR ALTER PROCEDURE Administracion.EliminarPuntosDeVenta
-    @id INT = NULL,
-    @parque_id INT = NULL,
+    @id SMALLINT = NULL, 
+    @parque_id INT = NULL, 
     @descripcion VARCHAR(100) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
 
     --Condiciones de falla
-    --1. Si ...
+    --1. Si los parámetros de búsqueda son nulos
     DECLARE @condicion1 BIT = CASE 
         WHEN @id IS NULL AND @parque_id IS NULL AND @descripcion IS NULL
         THEN 1 ELSE 0 END;
+    DECLARE @mensaje1 VARCHAR(100) = 'Los parámetros de búsqueda no pueden ser nulos.';
 
-    DECLARE @mensaje1 VARCHAR(100) = 'Los parámetros de búsqueda y de cambio no pueden ser nulos.';
+    DECLARE @idRealPDV SMALLINT, @parqueRealPDV INT;
+    SELECT TOP 1 @idRealPDV = id, @parqueRealPDV = parque_id
+    FROM Administracion.PuntosDeVenta
+    WHERE (@id IS NULL OR id = @id)
+      AND (@parque_id IS NULL OR parque_id = @parque_id)
+      AND (@descripcion IS NULL OR descripcion = @descripcion);
 
-    --2. Si 
-    DECLARE @idRealPDV INT
-    SELECT @idRealPDV = id FROM Administracion.PuntosDeVenta WHERE @id = id OR @parque_id = parque_id OR @descripcion = descripcion
-    DECLARE @condicion2 BIT = CASE 
-        WHEN @idRealPDV IS NULL
-        THEN 1 ELSE 0 END;
-
+    --2. Si no existe un punto de venta con las características ingresadas
+    DECLARE @condicion2 BIT = CASE WHEN @idRealPDV IS NULL THEN 1 ELSE 0 END;
     DECLARE @mensaje2 VARCHAR(100) = 'No existe un punto de venta con las características indicadas.';
 
-    --Generación del mensaje de error.
     DECLARE @mensajeDeError VARCHAR(MAX) = CONCAT_WS(CHAR(10),
-        IIF(@condicion1 = 1, @mensaje1, NULL),
-        IIF(@condicion2 = 1, @mensaje2, NULL)
-        );
+        IIF(@condicion1 = 1, @mensaje1, NULL), IIF(@condicion2 = 1, @mensaje2, NULL));
 
-    --Si falló, muestra mensaje de error, no hace cambios.
     IF (LEN(@mensajeDeError) > 0)
-    BEGIN
         RAISERROR(@mensajeDeError, 1, 1);
-    END;
-
-    --Si todo salió bien, ... .
     ELSE
-    BEGIN
         DELETE FROM Administracion.PuntosDeVenta
-        WHERE id = @idRealPDV
-    END
+        WHERE id = @idRealPDV AND parque_id = @parqueRealPDV
 END;
 GO

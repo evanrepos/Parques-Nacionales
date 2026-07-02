@@ -395,7 +395,7 @@ BEGIN
     -- Por consistencia de los Store Procedures: si está autorizado a dar el tour,
     -- está asignado al parque y la actividad es un tour.
     DECLARE @guiaExiste BIT = IIF(EXISTS (SELECT 1 FROM RRHH.Guias WHERE id = @id_guia), 1, 0);
-    DECLARE @tarifaExiste BIT = IIF(EXISTS (SELECT 1 FROM Administracion.TarifasDeArticulo WHERE id = @id_tarifa), 1, 0);
+    DECLARE @tarifaExiste BIT = IIF(EXISTS (SELECT 1 FROM Administracion.TarifasDeArticulo WHERE id = @id_tarifa AND tipo_articulo = 'T'), 1, 0);
 
     DECLARE @fechaInicio DATE;
     IF (@guiaExiste = 1 AND @tarifaExiste = 1)
@@ -413,12 +413,12 @@ BEGIN
 
     DECLARE @mensaje1 VARCHAR(100) = 'El guía no existe.';
 
-    --2. Si la tarifa no existe
+    --2. Si la tarifa no existe, o la tarifa no corresponde a un tour
     DECLARE @condicion2 BIT = CASE 
         WHEN @tarifaExiste = 0
         THEN 1 ELSE 0 END;
 
-    DECLARE @mensaje2 VARCHAR(100) = 'La tarifa no existe.';
+    DECLARE @mensaje2 VARCHAR(100) = 'La tarifa no existe, o la tarifa no corresponde a un tour.';
 
     --3. Si, siendo el guía y la tarifa reales, el guía no está autorizado a dar ese tour
     DECLARE @condicion3 BIT = CASE 
@@ -428,6 +428,8 @@ BEGIN
     DECLARE @mensaje3 VARCHAR(100) = 'El guía no está autorizado a dar ese tour.';
 
     --4. Si la fecha de fin es anterior a la fecha de autorización
+    IF @fecha_fin IS NULL
+        SET @fecha_fin = GETDATE();
     DECLARE @condicion4 BIT = CASE 
         WHEN @guiaExiste = 1 AND @tarifaExiste = 1 AND @fechaInicio IS NOT NULL AND @fecha_fin < @fechaInicio
         THEN 1 ELSE 0 END;

@@ -60,16 +60,14 @@ EXEC GenerarBackup
     @nombreBD = 'ParquesNacionales',
     @contraseña = 'Contraseña';
 
-EXEC RestaurarBackup 
-    @nombreBD = 'ParquesNacionales',
-    @pathBak = 'E:\evanrepos\Parques-Nacionales-Backups\PN-2026-06-30.bak';
-
-
 RESTORE DATABASE ParquesNacionales_Test
 FROM DISK = 'E:\evanrepos\Parques-Nacionales-Backups\PN-2026-06-30.bak'
 WITH MOVE 'ParquesNacionales' TO 'E:\Program Files\Microsoft SQL Server\MSSQL17.MSSQLSERVER\MSSQL\DATA\ParquesNacionales_Test.mdf',
      MOVE 'ParquesNacionales_log' TO 'E:\Program Files\Microsoft SQL Server\MSSQL17.MSSQLSERVER\MSSQL\DATA\ParquesNacionales_Test_log.ldf',
      REPLACE;
-
 DROP DATABASE ParquesNacionales_Test;
 */
+
+EXEC RestaurarBackup 
+    @nombreBD = 'ParquesNacionales',
+    @pathBak = 'E:\evanrepos\Parques-Nacionales-Backups\PN-2026-07-02.bak';

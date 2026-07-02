@@ -33,7 +33,7 @@ BEGIN
     --Condiciones de falla
     --1. Si el cuit es nulo o no respeta el rango válido
     DECLARE @condicion1 BIT = CASE 
-        WHEN @cuit IS NULL OR @cuit NOT BETWEEN 20000000001 AND 339999999999
+        WHEN @cuit IS NULL OR @cuit NOT BETWEEN 20000000001 AND 33999999999
         THEN 1 ELSE 0 END;
 
     DECLARE @mensaje1 VARCHAR(100) = 'El cuit es nulo o inválido.';

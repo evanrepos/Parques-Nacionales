@@ -592,8 +592,14 @@ BEGIN
     BEGIN CATCH
 
         IF @@TRANCOUNT > 0
+        BEGIN
             ROLLBACK TRANSACTION;
-
+            DBCC CHECKIDENT('RRHH.Guardaparques', 'RESEED', 0);
+            DBCC CHECKIDENT('RRHH.AsignacionesDeGuardaparques', 'RESEED', 0);
+            DBCC CHECKIDENT('RRHH.Guias', 'RESEED', 0);
+            DBCC CHECKIDENT('RRHH.AsignacionesDeGuias', 'RESEED', 0);
+            DBCC CHECKIDENT('RRHH.AutorizacionesDeGuias', 'RESEED', 0);
+        END
         DECLARE @Mensaje NVARCHAR(MAX);
 
         SET @Mensaje = CONCAT(

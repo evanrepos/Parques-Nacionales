@@ -259,7 +259,8 @@ BEGIN
             region VARCHAR(100) COLLATE Modern_Spanish_CI_AI NOT NULL, 
             superficie INT, 
             año_creacion SMALLINT, 
-            coordenadas VARCHAR(100)
+            latitud VARCHAR(50),
+            longitud VARCHAR(50)
         )
 
         -- PASO 1: Importar Parques
@@ -396,12 +397,30 @@ BEGIN
                 region VARCHAR(100) COLLATE Modern_Spanish_CI_AI NOT NULL, 
                 superficie INT, 
                 año_creacion SMALLINT, 
-                coordenadas VARCHAR(100)
+                latitud VARCHAR(50),
+                longitud VARCHAR(50)
             )
 
             -- PASO 1: Importar Parques
             INSERT INTO #Parques
-                SELECT *
+                SELECT 
+                [Nombre],
+                [Categoría de conservación],
+                [Ubicación],
+                [Eco región],
+                [Superficie (ha)],
+                [Año de creación],
+                LEFT(
+                    [Coordenadas],
+                    ISNULL(CHARINDEX('N ', [Coordenadas]), 0) +
+                    ISNULL(CHARINDEX('S ', [Coordenadas]), 0)
+                    ) AS [Latitud],
+                LTRIM(
+                    SUBSTRING([Coordenadas], 
+                    ISNULL(CHARINDEX('N ', [Coordenadas]), 0) +
+                    ISNULL(CHARINDEX('S ', [Coordenadas]), 0) + 1, 
+                    LEN([Coordenadas]))
+                    ) AS [Longitud]
                 FROM OPENROWSET(
                     'Microsoft.ACE.OLEDB.16.0',
                     'Excel 12.0;HDR=YES;IMEX=1;Database=E:\evanrepos\Parques-Nacionales\Importacion\AreasProtegidas\AreasProtegidas.xlsx',
@@ -414,7 +433,8 @@ BEGIN
             BEGIN
                 DECLARE @tp_id TINYINT;
                 DECLARE @ap_id TINYINT;
-                DECLARE @p_direccion VARCHAR(100);
+                DECLARE @p_latitud VARCHAR(50);
+                DECLARE @p_longitud VARCHAR(50);
                 DECLARE @p_nombre VARCHAR(100);
                 DECLARE @p_superficie INT;
                 DECLARE @año SMALLINT;
@@ -422,7 +442,8 @@ BEGIN
                 SELECT 
                     @tp_id = tp.id, 
                     @ap_id = ap.id, 
-                    @p_direccion = coordenadas, 
+                    @p_latitud = latitud, 
+                    @p_longitud = longitud, 
                     @p_nombre = p.nombre, 
                     @p_superficie = superficie,
                     @año = p.año_creacion
@@ -434,7 +455,7 @@ BEGIN
                 WHERE p.id = @i
 
                 --PRINT @categoria_conservacion
-                EXEC Administracion.IngresarParques @tipo_parque_id = @tp_id, @provincia_id = @ap_id, @direccion = @p_direccion, @nombre = @p_nombre, @superficie = @p_superficie, @año_creacion = @año;
+                EXEC Administracion.IngresarParques @tipo_parque_id = @tp_id, @provincia_id = @ap_id, @latitud = @p_latitud, @longitud = @p_longitud, @nombre = @p_nombre, @superficie = @p_superficie, @año_creacion = @año;
                 SET @i = @i + 1;
             END
         COMMIT TRANSACTION;
@@ -845,8 +866,20 @@ BEGIN
     BEGIN CATCH
 
         IF @@TRANCOUNT > 0
+        BEGIN
             ROLLBACK TRANSACTION;
-
+            DBCC CHECKIDENT('Administracion.FormasDePago', 'RESEED', 0);
+            DBCC CHECKIDENT('Administracion.Divisas', 'RESEED', 0);
+            DBCC CHECKIDENT('Administracion.Feriados', 'RESEED', 0);
+            DBCC CHECKIDENT('Administracion.TiposDeFecha', 'RESEED', 0);
+            DBCC CHECKIDENT('Administracion.TiposDeVisitante', 'RESEED', 0);
+            DBCC CHECKIDENT('Administracion.TiposDeParque', 'RESEED', 0);
+            DBCC CHECKIDENT('Administracion.Provincias', 'RESEED', 0);
+            DBCC CHECKIDENT('Administracion.Parques', 'RESEED', 0);
+            DBCC CHECKIDENT('Administracion.TarifasDeArticulo', 'RESEED', 0);
+            DBCC CHECKIDENT('Administracion.Ajustes', 'RESEED', 0);
+            DBCC CHECKIDENT('Administracion.PuntosDeVenta', 'RESEED', 0);
+        END
         DECLARE @Mensaje NVARCHAR(MAX);
 
         SET @Mensaje = CONCAT(

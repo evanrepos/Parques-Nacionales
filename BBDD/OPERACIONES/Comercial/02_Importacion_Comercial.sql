@@ -596,15 +596,11 @@ BEGIN
 
         IF @@TRANCOUNT > 0
         BEGIN
-            DELETE FROM Comercial.ActividadesDeConcesiones
-            DBCC CHECKIDENT ('Comercial.ActividadesDeConcesiones', 'RESEED', 0)
-            DELETE FROM Comercial.Empresas
-            DBCC CHECKIDENT ('Comercial.Empresas', 'RESEED', 0)
-            DELETE FROM Comercial.Concesiones
-            DBCC CHECKIDENT ('Comercial.Concesiones', 'RESEED', 0)
-            DELETE FROM Comercial.CuotasCanon
-            DBCC CHECKIDENT ('Comercial.CuotasCanon', 'RESEED', 0)
             ROLLBACK TRANSACTION;
+            DBCC CHECKIDENT('Comercial.ActividadesDeConcesiones', 'RESEED', 0);
+            DBCC CHECKIDENT('Comercial.Empresas', 'RESEED', 0);
+            DBCC CHECKIDENT('Comercial.Concesiones', 'RESEED', 0);
+            DBCC CHECKIDENT('Comercial.CuotasCanon', 'RESEED', 0);
         END
 
         DECLARE @Mensaje NVARCHAR(MAX);

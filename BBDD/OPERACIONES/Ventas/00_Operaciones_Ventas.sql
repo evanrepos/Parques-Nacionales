@@ -28,47 +28,56 @@ BEGIN
     SET NOCOUNT ON;
 
     --Condiciones de falla
-    --1. Si 
+    --1. Si la tarifa de artículo es nula
     DECLARE @condicion1 BIT = CASE 
         WHEN @tarifa_id IS NULL
         THEN 1 ELSE 0 END;
 
     DECLARE @mensaje1 VARCHAR(100) = 'La tarifa de artículo no puede ser nula.';
 
-    --2. Si 
+    --2. Si la tarifa de artículo no existe
     DECLARE @condicion2 BIT = CASE 
         WHEN NOT EXISTS (SELECT 1 FROM Administracion.TarifasDeArticulo WHERE id = @tarifa_id)
         THEN 1 ELSE 0 END;
 
     DECLARE @mensaje2 VARCHAR(100) = 'La tarifa de artículo debe ser existente.';
 
-    --3. Si 
+    --3. Si el ticket de venta es nulo
     DECLARE @condicion3 BIT = CASE 
         WHEN @ticket_id IS NULL
         THEN 1 ELSE 0 END;
 
-    DECLARE @mensaje3 VARCHAR(100) = 'El ticket de venta no puede ser nulo, debe ser generado.';
+    DECLARE @mensaje3 VARCHAR(100) = 'El ticket de venta no puede ser nulo.';
         
-    --4. Si 
+    --4. Si no existe el número de ticket
     DECLARE @condicion4 BIT = CASE 
         WHEN NOT EXISTS (SELECT 1 FROM Ventas.TicketsDeVenta WHERE id = @ticket_id)
         THEN 1 ELSE 0 END;
 
-    DECLARE @mensaje4 VARCHAR(100) = 'El guía debe ser existente y estar autorizado.';
+    DECLARE @mensaje4 VARCHAR(100) = 'El ticket de venta tiene que haber sido generado.';
         
-    --5. Si 
+    --5. Si la fecha de visita es nula o posterior a la del día de hoy
     DECLARE @condicion5 BIT = CASE 
         WHEN @f_visita IS NULL OR @f_visita > GETDATE()
         THEN 1 ELSE 0 END;
 
     DECLARE @mensaje5 VARCHAR(100) = 'La fecha de visita no puede ser nula, ni futura.';
         
-    --6. Si 
+    --6. Si el precio es nulo o menor a 0
     DECLARE @condicion6 BIT = CASE 
         WHEN @precio IS NULL OR @precio < 0
         THEN 1 ELSE 0 END;
 
-    DECLARE @mensaje6 VARCHAR(100) = 'El precio debe ser mayor a cero o gratuito.';
+    DECLARE @mensaje6 VARCHAR(100) = 'La actividad debe tener precio mayor a cero o ser gratuita.';
+    
+    --7. Si ya existe una actividad con el mismo número de tarifa y de ticket
+    DECLARE @condicion11 BIT = CASE 
+        WHEN EXISTS (SELECT 1 FROM Ventas.Actividades 
+            WHERE tarifa_id = @tarifa_id AND 
+                ticket_id = @ticket_id)
+        THEN 1 ELSE 0 END;
+
+    DECLARE @mensaje11 VARCHAR(100) = 'Ya existe una actividad con las características ingresadas.';
 
     --Generación del mensaje de error.
     DECLARE @mensajeDeError VARCHAR(MAX) = CONCAT_WS(CHAR(10),
@@ -112,54 +121,64 @@ BEGIN
     SET NOCOUNT ON;
 
     --Condiciones de falla
-    --1. Si 
+    --1. Si la tarifa de artículo es nula
     DECLARE @condicion1 BIT = CASE 
         WHEN @tarifa_id IS NULL
         THEN 1 ELSE 0 END;
 
     DECLARE @mensaje1 VARCHAR(100) = 'La tarifa de artículo no puede ser nula.';
 
-    --2. Si 
+    --2. Si la tarifa de artículo no existe
     DECLARE @condicion2 BIT = CASE 
         WHEN NOT EXISTS (SELECT 1 FROM Administracion.TarifasDeArticulo WHERE id = @tarifa_id)
         THEN 1 ELSE 0 END;
 
     DECLARE @mensaje2 VARCHAR(100) = 'La tarifa de artículo debe ser existente.';
 
-    --3. Si 
+    --3. Si el legajo del guía es nulo
     DECLARE @condicion3 BIT = CASE 
         WHEN @guia_id IS NULL
         THEN 1 ELSE 0 END;
 
     DECLARE @mensaje3 VARCHAR(100) = 'El legajo de guía no puede ser nulo.';
         
-    --4. Si 
+    --4. Si el guia ingresado no figura en las autorizaciones, o no imparte el tour ingresado, o su autorización tuvo fecha de fin
     DECLARE @condicion4 BIT = CASE 
         WHEN NOT EXISTS (SELECT 1 FROM RRHH.AutorizacionesDeGuias WHERE guia_id = @guia_id AND articulo_id = @tarifa_id AND f_fin IS NULL)
         THEN 1 ELSE 0 END;
 
     DECLARE @mensaje4 VARCHAR(100) = 'El guía debe ser existente y estar autorizado.';
         
-    --5. Si 
+    --5. Si la fecha de visita es nula o posterior a la de hoy
     DECLARE @condicion5 BIT = CASE 
         WHEN @f_visita IS NULL OR @f_visita > GETDATE()
         THEN 1 ELSE 0 END;
 
     DECLARE @mensaje5 VARCHAR(100) = 'La fecha de visita no puede ser nula, ni futura.';
         
-    --6. Si 
+    --6. Si la cantidad de cupos es nula o menor a 0
     DECLARE @condicion6 BIT = CASE 
         WHEN @cant_cupos IS NULL OR @cant_cupos <= 0
         THEN 1 ELSE 0 END;
 
-    DECLARE @mensaje6 VARCHAR(100) = 'La cantidad de cupos no puede ser nula.';
+    DECLARE @mensaje6 VARCHAR(100) = 'La cantidad de cupos no puede ser nula ni menor a 0.';
         
-    --7. Si 
+    --7. Si el precio es nulo o menor a 0
     DECLARE @condicion7 BIT = CASE 
         WHEN @precio IS NULL OR @precio < 0
         THEN 1 ELSE 0 END;
 
-    DECLARE @mensaje7 VARCHAR(100) = 'El precio debe ser mayor a cero o gratuito.';
+    DECLARE @mensaje7 VARCHAR(100) = 'El tour debe tener precio mayor a cero o ser gratuito.';
+    
+    --8. Si ya existe un tour con la misma tarifa, el mismo guía, y la misma fecha de visita
+    DECLARE @condicion8 BIT = CASE 
+        WHEN EXISTS (SELECT 1 FROM Ventas.Tours 
+            WHERE tarifa_id = @tarifa_id AND 
+                guia_id = @guia_id AND
+                f_visita = @f_visita)
+        THEN 1 ELSE 0 END;
+
+    DECLARE @mensaje8 VARCHAR(100) = 'Ya existe un tour con las características ingresadas.';
 
     --Generación del mensaje de error.
     DECLARE @mensajeDeError VARCHAR(MAX) = CONCAT_WS(CHAR(10),
@@ -202,42 +221,42 @@ BEGIN
     SET NOCOUNT ON;
 
     --Condiciones de falla
-    --1. Si 
+    --1. Si el tour ingresado es nulo
     DECLARE @condicion1 BIT = CASE 
         WHEN @tour_id IS NULL
         THEN 1 ELSE 0 END;
 
-    DECLARE @mensaje1 VARCHAR(100) = '@actividad_id no puede ser nulo';
+    DECLARE @mensaje1 VARCHAR(100) = 'El tour no puede ser nulo.';
 
-    --2. Si 
+    --2. Si el tour ingresado no existe
     DECLARE @condicion2 BIT = CASE 
         WHEN NOT EXISTS (SELECT 1 FROM Ventas.Tours WHERE id = @tour_id)
         THEN 1 ELSE 0 END;
 
     DECLARE @mensaje2 VARCHAR(100) = 'El tour no existe';
 
-    --3. Si 
+    --3. Si el número de ticket es nulo
     DECLARE @condicion3 BIT = CASE 
         WHEN @ticket_id IS NULL
         THEN 1 ELSE 0 END;
 
-    DECLARE @mensaje3 VARCHAR(100) = '@ticket_id no puede ser nulo';
+    DECLARE @mensaje3 VARCHAR(100) = 'El número de ticket no puede ser nulo';
         
-    --4. Si 
+    --4. Si el número de ticket no existe
     DECLARE @condicion4 BIT = CASE 
         WHEN NOT EXISTS (SELECT 1 FROM Ventas.TicketsDeVenta WHERE id = @ticket_id)
         THEN 1 ELSE 0 END;
 
-    DECLARE @mensaje4 VARCHAR(100) = 'El ticket no existe';
+    DECLARE @mensaje4 VARCHAR(100) = 'El ticket no existe, debe ser generado';
         
-    --5. Si 
+    --5. Si la cantidad de participantes es menor o igual a cero
     DECLARE @condicion5 BIT = CASE 
         WHEN @cantidad IS NULL OR @cantidad <= 0
         THEN 1 ELSE 0 END;
 
     DECLARE @mensaje5 VARCHAR(100) = 'La cantidad de participantes debe ser mayor que cero.';
         
-    --6. Si 
+    --6. Si el ticket ingresado ya participa en el tour
     DECLARE @condicion6 BIT = CASE 
         WHEN EXISTS (SELECT 1 FROM Ventas.ParticipaEnTour WHERE tour_id = @tour_id AND ticket_id = @ticket_id)
         THEN 1 ELSE 0 END;
@@ -285,75 +304,84 @@ BEGIN
     SET NOCOUNT ON;
 
     --Condiciones de falla
-    --1. Si 
+    --1. Si la tarifa de articulo ingresada es nula
     DECLARE @condicion1 BIT = CASE 
         WHEN @tarifa_id IS NULL
         THEN 1 ELSE 0 END;
 
     DECLARE @mensaje1 VARCHAR(100) = 'La tarifa de artículo no puede ser nula.';
 
-    --2. Si 
+    --2. Si la tarifa de artículo no existe
     DECLARE @condicion2 BIT = CASE 
         WHEN NOT EXISTS (SELECT 1 FROM Administracion.TarifasDeArticulo WHERE id = @tarifa_id)
         THEN 1 ELSE 0 END;
 
     DECLARE @mensaje2 VARCHAR(100) = 'La tarifa de artículo debe ser existente.';
 
-    --3. Si 
+    --3. Si el ticket de venta es nulo
     DECLARE @condicion3 BIT = CASE 
         WHEN @ticket_id IS NULL
         THEN 1 ELSE 0 END;
 
-    DECLARE @mensaje3 VARCHAR(100) = 'El ticket de venta no puede ser nulo, debe ser generado.';
+    DECLARE @mensaje3 VARCHAR(100) = 'El ticket de venta no puede ser nulo.';
         
-    --4. Si 
+    --4. Si el ticket de venta no existe
     DECLARE @condicion4 BIT = CASE 
         WHEN NOT EXISTS (SELECT 1 FROM Ventas.TicketsDeVenta WHERE id = @ticket_id)
         THEN 1 ELSE 0 END;
 
-    DECLARE @mensaje4 VARCHAR(100) = 'El ticket de venta no puede ser nulo, debe ser generado.';
+    DECLARE @mensaje4 VARCHAR(100) = 'El ticket de venta debe ser generado.';
         
-    --5. Si 
+    --5. Si el tipo de fecha es nulo
     DECLARE @condicion5 BIT = CASE 
         WHEN @tipo_fecha_id IS NULL
         THEN 1 ELSE 0 END;
 
     DECLARE @mensaje5 VARCHAR(100) = 'El tipo de fecha no puede ser nulo.';
         
-    --6. Si 
+    --6. Si no existe el tipo de fecha
     DECLARE @condicion6 BIT = CASE 
         WHEN NOT EXISTS (SELECT 1 FROM Administracion.TiposDeFecha WHERE id = @tipo_fecha_id)
         THEN 1 ELSE 0 END;
 
     DECLARE @mensaje6 VARCHAR(100) = 'El guía debe ser existente y estar autorizado.';
         
-    --7. Si 
+    --7. Si el tipo de visitante es nulo
     DECLARE @condicion7 BIT = CASE 
         WHEN @tipo_visitante_id IS NULL
         THEN 1 ELSE 0 END;
 
     DECLARE @mensaje7 VARCHAR(100) = 'El tipo de visitante no puede ser nulo.';
         
-    --8. Si 
+    --8. Si el tipo de visitante no existe
     DECLARE @condicion8 BIT = CASE 
         WHEN NOT EXISTS (SELECT 1 FROM Administracion.TiposDeVisitante WHERE id = @tipo_visitante_id)
         THEN 1 ELSE 0 END;
 
     DECLARE @mensaje8 VARCHAR(100) = 'El guía debe ser existente y estar autorizado.';
         
-    --9. Si 
+    --9. Si la fecha de visita es nula o posterior a la de hoy
     DECLARE @condicion9 BIT = CASE 
         WHEN @f_visita IS NULL OR @f_visita > GETDATE()
         THEN 1 ELSE 0 END;
 
     DECLARE @mensaje9 VARCHAR(100) = 'La fecha de visita no puede ser nula, ni futura.';
         
-    --10. 
+    --10. Si el precio ingresado es menor a cero
     DECLARE @condicion10 BIT = CASE 
         WHEN @precio IS NULL OR @precio < 0
         THEN 1 ELSE 0 END;
 
     DECLARE @mensaje10 VARCHAR(100) = 'El precio debe ser mayor a cero o gratuito.';
+
+    --11. Si ya existe una entrada con la misma tarifa y el mismo ticket
+    DECLARE @condicion11 BIT = CASE 
+        WHEN EXISTS (SELECT 1 FROM Ventas.Entradas 
+            WHERE tarifa_id = @tarifa_id AND 
+                ticket_id = @ticket_id)
+        THEN 1 ELSE 0 END;
+
+    DECLARE @mensaje11 VARCHAR(100) = 'Ya existe una entrada con las características ingresadas.';
 
     --Generación del mensaje de error.
     DECLARE @mensajeDeError VARCHAR(MAX) = CONCAT_WS(CHAR(10),
@@ -366,7 +394,8 @@ BEGIN
         IIF(@condicion7 = 1, @mensaje7, NULL),
         IIF(@condicion8 = 1, @mensaje8, NULL),
         IIF(@condicion9 = 1, @mensaje9, NULL),
-        IIF(@condicion10 = 1, @mensaje10, NULL)
+        IIF(@condicion10 = 1, @mensaje10, NULL),
+        IIF(@condicion11 = 1, @mensaje10, NULL)
         );
 
     --Si falló, muestra mensaje de error, no hace cambios.
@@ -404,63 +433,63 @@ BEGIN
     SET NOCOUNT ON;
 
     --Condiciones de falla
-    --1. Si 
+    --1. Si el punto de venta es nulo
     DECLARE @condicion1 BIT = CASE 
         WHEN @punto_venta_id IS NULL
         THEN 1 ELSE 0 END;
 
-    DECLARE @mensaje1 VARCHAR(100) = '@punto_venta_id no puede ser nulo';
+    DECLARE @mensaje1 VARCHAR(100) = 'El punto de venta no puede ser nulo';
 
-    --2. Si 
+    --2. Si el punto de venta no existe
     DECLARE @condicion2 BIT = CASE 
         WHEN NOT EXISTS (SELECT 1 FROM Administracion.PuntosDeVenta WHERE id = @punto_venta_id AND parque_id = @parque_id)
         THEN 1 ELSE 0 END;
 
     DECLARE @mensaje2 VARCHAR(100) = 'El punto de venta no existe';
 
-    --3. Si 
+    --3. Si la forma de pago es nula
     DECLARE @condicion3 BIT = CASE 
         WHEN @forma_pago_id IS NULL
         THEN 1 ELSE 0 END;
 
-    DECLARE @mensaje3 VARCHAR(100) = '@forma_pago_id no puede ser nulo';
+    DECLARE @mensaje3 VARCHAR(100) = 'La forma de pago no puede ser nula';
         
-    --4. Si 
+    --4. Si la forma de pago no existe
     DECLARE @condicion4 BIT = CASE 
         WHEN NOT EXISTS (SELECT 1 FROM Administracion.FormasDePago WHERE id = @forma_pago_id)
         THEN 1 ELSE 0 END;
 
     DECLARE @mensaje4 VARCHAR(100) = 'La forma de pago no existe';
         
-    --5. Si 
+    --5. Si la divisa es nula
     DECLARE @condicion5 BIT = CASE 
         WHEN @divisa_id IS NULL
         THEN 1 ELSE 0 END;
 
-    DECLARE @mensaje5 VARCHAR(100) = '@divisa_id no puede ser nulo';
+    DECLARE @mensaje5 VARCHAR(100) = 'El número de divisa no puede ser nulo';
         
-    --6. Si 
+    --6. Si la divisa no existe
     DECLARE @condicion6 BIT = CASE 
         WHEN NOT EXISTS (SELECT 1 FROM Administracion.Divisas WHERE id = @divisa_id)
         THEN 1 ELSE 0 END;
 
     DECLARE @mensaje6 VARCHAR(100) = 'La divisa no existe';
         
-    --7. Si 
+    --7. Si el total de la venta es menor que cero
     DECLARE @condicion7 BIT = CASE 
-        WHEN @total IS NOT NULL AND @total < 0
+        WHEN @total < 0
         THEN 1 ELSE 0 END;
 
     DECLARE @mensaje7 VARCHAR(100) = 'El total no puede ser negativo';
         
-    --8. Si 
+    --8. Si la fecha de generación es posterior a la de hoy
     DECLARE @condicion8 BIT = CASE 
-        WHEN @f_generacion IS NOT NULL AND @f_generacion > GETDATE()
+        WHEN @f_generacion > GETDATE()
         THEN 1 ELSE 0 END;
 
-    DECLARE @mensaje8 VARCHAR(100) = 'La fecha de generación no puede ser futura';
+    DECLARE @mensaje8 VARCHAR(100) = 'La fecha de generación no puede ser posterior a la de hoy';
         
-    --9. Si 
+    --9. Si ya existe una venta con el mismo punto de venta, el mismo parque y la misma fecha de generación
     DECLARE @condicion9 BIT = CASE 
         WHEN EXISTS (SELECT 1 FROM Ventas.TicketsDeVenta WHERE punto_venta_id = @punto_venta_id AND parque_id = @parque_id AND f_generacion = @f_generacion)
         THEN 1 ELSE 0 END;
@@ -486,7 +515,7 @@ BEGIN
         RAISERROR(@mensajeDeError, 1, 1);
     END;
 
-    --Si todo salió bien.
+    --Si todo salió bien, se ingresa el ticket de venta.
     ELSE
     BEGIN
         IF @tipo_fecha_id IS NULL
@@ -527,49 +556,49 @@ BEGIN
     SET NOCOUNT ON;
 
     --Condiciones de falla
-    --1. Si 
+    --1. Si el ticket ingresado es nulo
     DECLARE @condicion1 BIT = CASE 
         WHEN @ticket_id IS NULL
         THEN 1 ELSE 0 END;
 
-    DECLARE @mensaje1 VARCHAR(100) = '@ticket_id no puede ser nulo';
+    DECLARE @mensaje1 VARCHAR(100) = 'El número de ticket no puede ser nulo';
 
-    --2. Si 
+    --2. Si el ticket ingresado no existe
     DECLARE @condicion2 BIT = CASE 
         WHEN NOT EXISTS (SELECT 1 FROM Ventas.TicketsDeVenta WHERE id = @ticket_id)
         THEN 1 ELSE 0 END;
 
     DECLARE @mensaje2 VARCHAR(100) = 'El ticket no existe';
 
-    --3. Si 
+    --3. Si la tarifa de artículo es nula
     DECLARE @condicion3 BIT = CASE 
         WHEN @tarifa_id IS NULL
         THEN 1 ELSE 0 END;
 
-    DECLARE @mensaje3 VARCHAR(100) = '@tarifa_id no puede ser nulo';
+    DECLARE @mensaje3 VARCHAR(100) = 'La tarifa de artículo no puede ser nula';
         
-    --4. Si 
+    --4. Si la tarifa de artículo no existe
     DECLARE @condicion4 BIT = CASE 
         WHEN NOT EXISTS (SELECT 1 FROM Administracion.TarifasDeArticulo WHERE id = @tarifa_id)
         THEN 1 ELSE 0 END;
 
     DECLARE @mensaje4 VARCHAR(100) = 'La tarifa no existe';
         
-    --5. Si 
+    --5. Si el tipo de visitante es nulo
     DECLARE @condicion5 BIT = CASE 
         WHEN @tipo_visitante_id IS NULL
         THEN 1 ELSE 0 END;
 
     DECLARE @mensaje5 VARCHAR(100) = 'El tipo de visitante no puede ser nulo';
         
-    --6. Si 
+    --6. Si el tipo de visitante no existe
     DECLARE @condicion6 BIT = CASE 
         WHEN NOT EXISTS (SELECT 1 FROM Administracion.TiposDeVisitante WHERE id = @tipo_visitante_id)
         THEN 1 ELSE 0 END;
 
     DECLARE @mensaje6 VARCHAR(100) = 'El tipo de visitante no existe';
         
-    --7. Si 
+    --7. Si la cantidad ingresada es mayor a cero
     DECLARE @condicion7 BIT = CASE 
         WHEN @cantidad IS NULL OR @cantidad <= 0
         THEN 1 ELSE 0 END;
@@ -593,7 +622,7 @@ BEGIN
         RAISERROR(@mensajeDeError, 1, 1);
     END;
 
-    --Si todo salió bien,  .
+    --Si todo salió bien, se ingresa el detalle de ticket.
     ELSE
     BEGIN
         DECLARE @precio_base DECIMAL(10, 2);
